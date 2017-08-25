@@ -5,6 +5,8 @@ buildscript {
     ext.kotlin_version = '1.1.4-2'
 
     repositories {
+        maven { url 'http://maven.aliyun.com/nexus/content/repositories/central/' }
+        jcenter()
         mavenCentral()
     }
     dependencies {
@@ -15,12 +17,15 @@ buildscript {
 apply plugin: 'kotlin'
 
 repositories {
+    maven { url 'http://maven.aliyun.com/nexus/content/repositories/central/' }
+    jcenter()
     mavenCentral()
 }
 
 dependencies {
     compile "org.jetbrains.kotlin:kotlin-stdlib-jre8:$kotlin_version"
     testCompile 'junit:junit:4.12'
+    testCompile "org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version"
 }
 
 compileKotlin {
