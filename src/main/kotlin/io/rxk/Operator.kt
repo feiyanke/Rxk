@@ -179,7 +179,7 @@ fun <T> Stream<T>.ignoreError(block: (e: Throwable) -> Unit) : Stream<T> {
     return IgnoreError(this, block)
 }
 
-fun <T> Stream<T>.finish(block: () -> Unit) {
+fun <T> Stream<T>.finish(block: () -> Unit = {}) {
     receiver = Finish(block)
     start()
     request()

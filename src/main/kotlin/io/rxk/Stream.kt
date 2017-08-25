@@ -13,6 +13,7 @@ interface Stream<T> {
         fun never() = NeverStream()
         fun throws(e:Throwable) = ThrowStream(e)
         fun <T> from(iterable: Iterable<T>) = IterableStream(iterable)
+        fun <T> create(block:Source<T>.()->Unit) : Stream<T> = Source.create(block).asStream()
         fun fromRunable(block:()->Unit):Stream<Unit> {
             return object : BaseStream<Unit>() {
                 override fun request(n: Int) {
