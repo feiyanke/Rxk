@@ -158,6 +158,29 @@ class Error<T>(stream: Stream<T>, val block: (e:Throwable) -> Unit) : Operator<T
     }
 }
 
+class RepeatStream<T>(stream: Stream<T>, val n:Int) : Operator<T, T>(stream) {
+    override fun next(v: T) {
+        doNext(v)
+    }
+
+    var count = 0
+    override fun start() {
+        super.start()
+        count = 0
+    }
+
+    override fun finish() {
+        if (count < n) {
+            request()
+        } else {
+            doFinish()
+        }
+    }
+}
+
+fun <T> Stream<T>.repeat(n:Int):Stream<T> {
+    return RepeatStream<T>(this, n)
+}
 
 fun <T> Stream<T>.filter(predicate: (T) -> Boolean) : Stream<T> {
     return Filter(this, predicate)

@@ -21,6 +21,7 @@ interface Stream<T> {
                         block()
                     } catch (e:Throwable) {
                         doError(e)
+                    } finally {
                         doFinish()
                     }
                 }
@@ -40,6 +41,7 @@ interface Stream<T> {
                         doNext(callable())
                     } catch (e:Throwable) {
                         doError(e)
+                    } finally {
                         doFinish()
                     }
                 }
@@ -54,6 +56,16 @@ interface Stream<T> {
 
         fun <T> from(future: Future<T>):Stream<T> {
             return fromCallable(future::get)
+        }
+
+        fun interval(ms: Long):Stream<Int> = Source.interval(ms).asStream()
+
+        fun <T> just(v:T) : Stream<T> {
+            return fromCallable { v }
+        }
+
+        fun range(start:Int, count:Int) : Stream<Int> {
+            return from(start until start+count)
         }
     }
 }
@@ -118,4 +130,5 @@ class ThrowStream(val e:Throwable) : BaseStream<Unit>() {
         doFinish()
     }
 }
+
 
