@@ -20,4 +20,9 @@ class ChainTest : KotlinTests() {
         Mockito.verify(a, Mockito.times(1)).received(2)
         Mockito.verify(a, Mockito.times(0)).received(5)
     }
+
+    @Test
+    fun test1() {
+
+    }
 }
