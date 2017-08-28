@@ -1,4 +1,4 @@
-package io.rxk.chain
+package io.rxk
 
 class EmptyContext<T> : Context<T, T>(EmptyMethod())
 

@@ -2,13 +2,15 @@ package io.rxk
 
 import java.util.concurrent.*
 
-interface Source<T> {
-    var receiver : Receiver<T>?
-    fun start()
+interface ISource<T> : ISignal<T> {
+    fun reset()
+}
 
-    fun doNext(v:T) = receiver?.next(v)
-    fun doError(e:Throwable) = receiver?.error(e)
-    fun doFinish() = receiver?.finish()
+abstract class Source<T> : ISource<T> {
+
+    override val context: Context<T, T> = EmptyContext<T>().apply{
+        reset.out { this@Source.reset() }
+    }
 
     companion object {
         fun <T> create(block:Source<T>.()->Unit) : Source<T> {

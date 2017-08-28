@@ -1,4 +1,4 @@
-package io.rxk.chain
+package io.rxk
 
 interface IMethod<in T, R> : (T)->Unit {
     var output : (R)->Unit
