@@ -3,11 +3,11 @@ package io.rxk.chain
 class EmptyContext<T> : Context<T, T>(EmptyMethod())
 
 open class Context<T, R> (
-    var next : Method<T, R>,
-    var error : Method<Throwable,Throwable> = EmptyMethod(),
-    var finish : Method<Unit,Unit> = EmptyMethod(),
-    var request : Method<Int,Int> = EmptyMethod(),
-    var reset : Method<Unit,Unit> = EmptyMethod()
+    var next : IMethod<T, R>,
+    var error : IEasyMethod<Throwable> = EmptyMethod(),
+    var finish : IEasyMethod<Unit> = EmptyMethod(),
+    var request : IEasyMethod<Int> = EmptyMethod(),
+    var reset : IEasyMethod<Unit> = EmptyMethod()
 ) {
     companion object {
         fun <T> from(iterable: Iterable<T>) : Context<T, T> {
@@ -15,59 +15,30 @@ open class Context<T, R> (
         }
     }
 
-    fun chainNext(m:EasyMethod<R>?) : Context<T, R> = apply{
-        if (m!=null) next = next.chain(m)
-    }
-
-    fun <E> chainNext(m:Method<R, E>) : Context<T, E> {
+    fun <E> chainNext(m:IMethod<R, E>) : Context<T, E> {
         return Context(next.chain(m), error, finish, request, reset)
     }
 
-    fun chainError(m:EasyMethod<Throwable>?) : Context<T, R> = apply{
-        if (m!=null) error = error.chain(m)
+    fun chainNext(m:IEasyMethod<R>) : Context<T, R> = apply{
+        next = next.chain(m)
     }
 
-    fun chainFinish(m:EasyMethod<Unit>?) : Context<T, R> = apply{
-        if (m!=null) finish = finish.chain(m)
+    fun chainError(m:IEasyMethod<Throwable>) : Context<T, R> = apply{
+        error = error.chain(m)
     }
 
-    fun chainRequest(m:EasyMethod<Int>?) : Context<T, R> = apply{
-        if (m!=null) request = m.chain(request)
+    fun chainFinish(m:IEasyMethod<Unit>) : Context<T, R> = apply{
+        finish = finish.chain(m)
     }
 
-    fun chainReset(m:EasyMethod<Unit>?) : Context<T, R> = apply{
-        if (m!=null) reset = m.chain(reset)
+    fun chainRequest(m:IEasyMethod<Int>) : Context<T, R> = apply{
+        request = m.chain(request)
     }
 
-
-    /*fun <E> map(transform:(R)->E) : Context<T, E> {
-        return chainNext(object : Method<R, E>() {
-            override fun invoke(p1: R) {
-                try {
-                    output(transform(p1))
-                } catch (e : Throwable) {
-                    error(e)
-                }
-            }
-        })
+    fun chainReset(m:IEasyMethod<Unit>) : Context<T, R> = apply{
+        reset = m.chain(reset)
     }
-
-    fun filter(predicate:(R)->Boolean):Context<T, R> {
-        return chainNext(Filter(predicate))
-    }*/
 }
-
-
-
-/*abstract class Start<T> {
-    val context : Context<T,T> = Context(EmptyMethod())
-    init {
-        context.request.out{request(it)}
-        context.reset.out{reset()}
-    }
-    abstract fun reset()
-    abstract fun request(n: Int = 1)
-}*/
 
 abstract class TestStart<T> {
     abstract fun reset()
@@ -198,7 +169,7 @@ fun <R> Context<*, R>.filter(predicate: (R) -> Boolean) : Context<*, R> {
     return chainNext(next).chainError(error).chainRequest(request)
 }
 
-fun <R> Context<*, R>.forEach(block:(R)->Unit):Context<*, R> {
+fun <R> Context<*, R>.forEach(n:Int = 1, block:(R)->Unit):Context<*, R> {
     val error = EmptyMethod<Throwable>()
     next.out {
         try {
@@ -235,7 +206,7 @@ fun main(args: Array<String>) {
             .map { it*it }
             .filter { it % 2 == 0 }
             .map { it.toString() }
-            .filter { it.length < 3 }
+            //.filter { it.length < 3 }
             .forEach { println(it) }
             .finish {
                 println("finished")
