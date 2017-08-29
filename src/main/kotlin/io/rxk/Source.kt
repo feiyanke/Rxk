@@ -8,14 +8,53 @@ import java.util.concurrent.*
 //        return super.makeContext().apply { reset.out { this@ISource.reset() } }
 //    }
 //}
+open class SourceContext<T, R> (
+        next : IMethod<T, R>,
+        error : IEasyMethod<Throwable>,
+        finish : IEasyMethod<Unit>,
+        var reset : IEasyMethod<Unit>)
+    : SignalContext<T, R>(next, error, finish) {
+
+    override fun <E> make(next : IMethod<R, E>,
+                           error : IEasyMethod<Throwable>?,
+                           finish : IEasyMethod<Unit>?,
+                           request : IEasyMethod<Int>?,
+                           reset : IEasyMethod<Unit>?
+    ) : SourceContext<T, E> = chainNext(next).apply {
+        chainError(error)
+        chainFinish(finish)
+        chainReset(reset)
+    }
+
+    override fun make(next : IEasyMethod<R>?,
+                       error : IEasyMethod<Throwable>?,
+                       finish : IEasyMethod<Unit>?,
+                       request : IEasyMethod<Int>?,
+                       reset : IEasyMethod<Unit>?
+    ) : SourceContext<T, R> = apply {
+        chainNext(next)
+        chainError(error)
+        chainFinish(finish)
+        chainReset(reset)
+    }
+
+    private fun <E> chainNext(m:IMethod<R, E>) : SourceContext<T, E>
+            = SourceContext(next.chain(m), error, finish, reset)
+
+    protected fun chainReset(m:IEasyMethod<Unit>?) {
+        if (m!=null) reset = m.chain(reset)
+    }
+
+}
 
 abstract class Source<S> : Signal<S>() {
 
     abstract fun reset()
-    override val reset = method { reset() }
+    val reset = method { reset() }
+    override fun makeContext(): SourceContext<S, S> = SourceContext(this, error, finish, reset)
 
     companion object {
-        fun <S> create(block:Source<S>.()->Unit) : Context<S, S> {
+        fun <S> create(block:Source<S>.()->Unit) : SourceContext<S, S> {
             return object : Source<S>() {
                 override fun reset() {
                     try {
@@ -28,7 +67,7 @@ abstract class Source<S> : Signal<S>() {
             }.makeContext()
         }
 
-        fun fromRunable(block:()->Unit):Context<Unit, Unit> {
+        fun fromRunable(block:()->Unit):SourceContext<Unit, Unit> {
             return object : Source<Unit>() {
                 override fun reset() {
                     try {
@@ -42,11 +81,11 @@ abstract class Source<S> : Signal<S>() {
             }.makeContext()
         }
 
-        fun from(runnable: Runnable):Context<Unit, Unit> {
+        fun from(runnable: Runnable):SourceContext<Unit, Unit> {
             return fromRunable(runnable::run)
         }
 
-        fun <T> fromCallable(callable:()->T) : Context<T, T> {
+        fun <T> fromCallable(callable:()->T) : SourceContext<T, T> {
             return object : Source<T>() {
                 override fun reset() {
                     try {
@@ -60,15 +99,15 @@ abstract class Source<S> : Signal<S>() {
             }.makeContext()
         }
 
-        fun <T> from(callable: Callable<T>):Context<T, T> {
+        fun <T> from(callable: Callable<T>):SourceContext<T, T> {
             return fromCallable(callable::call)
         }
 
-        fun <T> from(future: Future<T>):Context<T, T> {
+        fun <T> from(future: Future<T>):SourceContext<T, T> {
             return fromCallable(future::get)
         }
 
-        fun interval(ms: Long):Context<Int, Int> {
+        fun interval(ms: Long):SourceContext<Int, Int> {
             return IntervalSource(ms).makeContext()
         }
     }
