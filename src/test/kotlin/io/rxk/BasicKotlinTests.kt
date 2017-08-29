@@ -28,10 +28,10 @@ import kotlin.concurrent.thread
 class BasicKotlinTests : KotlinTests() {
 
     @Test fun testCreate() {
-        Stream.create<String> {
-            doNext("Hello")
-            doFinish()
-        }.forEach { a.received(it) }.finish()
+//        Stream.create<String> {
+//            doNext("Hello")
+//            doFinish()
+//        }.forEach { a.received(it) }.finish()
 
         verify(a, times(1)).received("Hello")
     }

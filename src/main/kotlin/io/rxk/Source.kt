@@ -21,7 +21,7 @@ abstract class Source<S> : ISource<S> {
     }
 
     companion object {
-        fun <T> create(block:Source<T>.()->Unit) : ISource<T> {
+        fun <T> create(block:Source<T>.()->Unit) : IContext<*, T> {
             return object : Source<T>() {
                 override fun reset() {
                     try {
@@ -31,8 +31,7 @@ abstract class Source<S> : ISource<S> {
                         finish()
                     }
                 }
-
-            }
+            }.makeContext()
         }
 
         fun fromRunable(block:()->Unit):ISource<Unit> {
@@ -75,8 +74,8 @@ abstract class Source<S> : ISource<S> {
             return fromCallable(future::get)
         }
 
-        fun interval(ms: Long):ISource<Int> {
-            return IntervalSource(ms)
+        fun interval(ms: Long):IContext<*, Int> {
+            return IntervalSource(ms).makeContext()
         }
     }
 }
@@ -129,54 +128,7 @@ class IntervalSource(val ms:Long) : Source<Int>() {
 //    }
 //}
 //
-//class ToStream<T>(context: Context<*, T>) {
-//
-//    val queue : LinkedTransferQueue<Any> = LinkedTransferQueue()
-//    object finished
-//    init {
-//        source.receiver = this
-//    }
-//
-//    fun doStart() {
-//        source.start()
-//    }
-//
-//    override fun reset() {
-//        queue.clear()
-//        doStart()
-//    }
-//
-//    override fun next(v: T) {
-//        queue.add(v)
-//    }
-//
-//    override fun error(e: Throwable) {
-//        queue.add(e)
-//    }
-//
-//    override fun finish() {
-//        queue.add(finished)
-//    }
-//
-//    val request = object : EasyMethod<Int>() {
-//        override fun invoke(n: Int) {
-//            for (i in 0 until n) {
-//                requestOne()
-//            }
-//        }
-//    }
-//
-//    private fun requestOne() {
-//        val a = queue.take()
-//        if (a is Throwable) {
-//            doError(a)
-//        } else if (a == finished) {
-//            doFinish()
-//        } else {
-//            doNext(a as T)
-//        }
-//    }
-//}
+
 //
 //
 //

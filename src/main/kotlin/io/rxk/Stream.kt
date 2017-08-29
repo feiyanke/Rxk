@@ -12,15 +12,15 @@ interface IStream<T> : ISource<T> {
 
 abstract class Stream<T> : IStream<T> {
     override var output: (T) -> Unit = {}
-    val error = ErrorMethod()
-    val finish = FinishMethod()
+    open val error : IEasyMethod<Throwable> = ErrorMethod()
+    open val finish : IEasyMethod<Unit> = FinishMethod()
 
     companion object {
         fun empty() = EmptyStream()
         fun never() = NeverStream()
         fun throws(e:Throwable) = ThrowStream(e)
         fun <T> from(iterable: Iterable<T>) = IterableStream(iterable)
-        fun <T> create(block:Source<T>.()->Unit) : Stream<T> = Source.create(block).asStream()
+        fun <T> create(block:Source<T>.()->Unit) : IContext<*, T> = Source.create(block).asStream()
         fun fromRunable(block:()->Unit):Stream<Unit> {
             return object : Stream<Unit>() {
                 override fun request(n: Int) {

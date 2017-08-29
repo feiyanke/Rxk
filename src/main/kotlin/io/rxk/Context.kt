@@ -1,9 +1,76 @@
 package io.rxk
 
-class ErrorMethod : EmptyMethod<Throwable>()
-class FinishMethod : UnitMethod()
-class RequestMethod : EmptyMethod<Int>()
-class ResetMethod : UnitMethod()
+open class ErrorMethod : EmptyMethod<Throwable>()
+open class FinishMethod : UnitMethod()
+open class RequestMethod : EmptyMethod<Int>()
+open class ResetMethod : UnitMethod()
+
+inline fun errorMethod(crossinline block:ErrorMethod.(Throwable)->Unit) : ErrorMethod {
+    return object : ErrorMethod() {
+        override fun invoke(v: Throwable) {
+            block(v)
+        }
+    }
+}
+
+inline fun errorLambda(crossinline block:(Throwable)->Throwable) : ErrorMethod {
+    return object : ErrorMethod() {
+        override fun invoke(v:Throwable) {
+            output(block(v))
+        }
+    }
+}
+
+inline fun finishMethod(crossinline block:FinishMethod.()->Unit) : FinishMethod {
+    return object : FinishMethod() {
+        override fun invoke(v:Unit) {
+            block()
+        }
+    }
+}
+
+inline fun finishLambda(crossinline block:()->Unit) : FinishMethod {
+    return object : FinishMethod() {
+        override fun invoke(v:Unit) {
+            block()
+            output(Unit)
+        }
+    }
+}
+
+inline fun requestMethod(crossinline block:RequestMethod.(Int)->Unit) : RequestMethod {
+    return object : RequestMethod() {
+        override fun invoke(v:Int) {
+            block(v)
+        }
+    }
+}
+
+inline fun requestLambda(crossinline block:(Int)->Int) : RequestMethod {
+    return object : RequestMethod() {
+        override fun invoke(v:Int) {
+            output(block(v))
+        }
+    }
+}
+
+
+inline fun resetMethod(crossinline block:ResetMethod.()->Unit) : ResetMethod {
+    return object : ResetMethod() {
+        override fun invoke(v:Unit) {
+            block()
+        }
+    }
+}
+
+inline fun resetLambda(crossinline block:()->Unit) : ResetMethod {
+    return object : ResetMethod() {
+        override fun invoke(v:Unit) {
+            block()
+            output(Unit)
+        }
+    }
+}
 
 interface IContext<T, R> {
     var next : IMethod<T, R>
@@ -11,6 +78,8 @@ interface IContext<T, R> {
     var finish : IEasyMethod<Unit>
     var request : IEasyMethod<Int>
     var reset : IEasyMethod<Unit>
+
+    fun asStream() = AsStream<R>().makeContext(this)
 
     fun <E> make(next : IMethod<R, E>,
                  error : IEasyMethod<Throwable>? = null,

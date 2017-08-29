@@ -1,7 +1,40 @@
 package io.rxk
 
-interface IMethod<in T, R> : (T)->Unit {
+interface IMethod<in T, R> : (T)->Unit, ()->Unit {
+    override fun invoke() {}
     var output : (R)->Unit
+}
+
+inline fun <T, R> method(crossinline block:IMethod<T, R>.(T)->Unit) : IMethod<T, R> {
+    return object : Method<T, R>() {
+        override fun invoke(v: T) {
+            block(v)
+        }
+    }
+}
+
+inline fun <T, R> lambda(crossinline block:(T)->R) : IMethod<T, R> {
+    return object : Method<T, R>() {
+        override fun invoke(v: T) {
+            output(block(v))
+        }
+    }
+}
+
+inline fun <T> method(crossinline block:IEasyMethod<T>.(T)->Unit) : IEasyMethod<T> {
+    return object : EasyMethod<T>() {
+        override fun invoke(v: T) {
+            block(v)
+        }
+    }
+}
+
+inline fun <T> lambda(crossinline block:(T)->T) : IEasyMethod<T> {
+    return object : EasyMethod<T>() {
+        override fun invoke(v: T) {
+            output(block(v))
+        }
+    }
 }
 
 fun <T, R> IMethod<T, R>.out(o:(R)->Unit):IMethod<T, R> = apply { output = o }
@@ -36,7 +69,7 @@ open class EmptyMethod<T> : EasyMethod<T>() {
     override fun invoke(p1: T) = output(p1)
 }
 
-open class UnitMethod : EmptyMethod<Unit>(), ()->Unit {
+open class UnitMethod : EmptyMethod<Unit>() {
     override fun invoke() = invoke(Unit)
 }
 
