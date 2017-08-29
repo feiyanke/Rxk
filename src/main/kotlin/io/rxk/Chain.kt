@@ -32,8 +32,12 @@ abstract class Method<in T, R> : IMethod<T, R> {
 
 abstract class EasyMethod<T> : Method<T, T>(), IEasyMethod<T>
 
-class EmptyMethod<T> : EasyMethod<T>() {
+open class EmptyMethod<T> : EasyMethod<T>() {
     override fun invoke(p1: T) = output(p1)
+}
+
+open class UnitMethod : EmptyMethod<Unit>(), ()->Unit {
+    override fun invoke() = invoke(Unit)
 }
 
 open class Chain<in T, E, R>(a: IMethod<T, E>, b: IMethod<E, R>) : IChain<T, R> {

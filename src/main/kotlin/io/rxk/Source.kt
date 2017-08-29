@@ -2,198 +2,185 @@ package io.rxk
 
 import java.util.concurrent.*
 
-interface ISource<T> : ISignal<T> {
+interface ISource<S> : ISignal<S> {
     fun reset()
+    override fun makeContext(ctx: IContext<*, S>): IContext<*, S> {
+        return super.makeContext(ctx).apply { reset.out { this@ISource.reset() } }
+    }
 }
 
-abstract class Source<T> : ISource<T> {
+abstract class Source<S> : ISource<S> {
 
-    override val context: Context<T, T> = EmptyContext<T>().apply{
-        reset.out { this@Source.reset() }
+    override var output: (S) -> Unit = {}
+
+    val error = ErrorMethod()
+    val finish = FinishMethod()
+
+    override fun makeContext(ctx: IContext<*, S>): IContext<*, S> {
+        return super.makeContext(ctx).make(error = error, finish = finish)
     }
 
     companion object {
-        fun <T> create(block:Source<T>.()->Unit) : Source<T> {
-            return object : BaseSource<T>() {
-                override fun start() {
+        fun <T> create(block:Source<T>.()->Unit) : ISource<T> {
+            return object : Source<T>() {
+                override fun reset() {
                     try {
                         block()
                     } catch (e:Throwable) {
-                        doError(e)
-                        doFinish()
+                        error(e)
+                        finish()
                     }
-
                 }
 
             }
         }
 
-        fun fromRunable(block:()->Unit):Source<Unit> {
-            return object : BaseSource<Unit>() {
-                override fun start() {
+        fun fromRunable(block:()->Unit):ISource<Unit> {
+            return object : Source<Unit>() {
+                override fun reset() {
                     try {
                         block()
                     } catch (e:Throwable) {
-                        doError(e)
-                        doFinish()
+                        error(e)
+                    } finally {
+                        finish()
                     }
                 }
             }
         }
 
-        fun from(runnable: Runnable):Source<Unit> {
+        fun from(runnable: Runnable):ISource<Unit> {
             return fromRunable(runnable::run)
         }
 
-        fun <T> fromCallable(callable:()->T) : Source<T> {
-            return object : BaseSource<T>() {
-                override fun start() {
+        fun <T> fromCallable(callable:()->T) : ISource<T> {
+            return object : Source<T>() {
+                override fun reset() {
                     try {
-                        doNext(callable())
+                        next(callable())
                     } catch (e:Throwable) {
-                        doError(e)
-                        doFinish()
+                        error(e)
+                    } finally {
+                        finish()
                     }
                 }
             }
         }
 
-        fun <T> from(callable: Callable<T>):Source<T> {
+        fun <T> from(callable: Callable<T>):ISource<T> {
             return fromCallable(callable::call)
         }
 
-        fun <T> from(future: Future<T>):Source<T> {
+        fun <T> from(future: Future<T>):ISource<T> {
             return fromCallable(future::get)
         }
 
-        fun interval(ms: Long):Source<Int> {
+        fun interval(ms: Long):ISource<Int> {
             return IntervalSource(ms)
         }
     }
 }
 
-abstract class BaseSource<T>() : Source<T> {
-    override var receiver : Receiver<T>? = null
-}
-
-abstract class SourceOperator<T, R>(val source: Source<T>) : BaseSource<R>(), Receiver<T> {
-
-    init {
-        source.receiver = this
-    }
-
-    fun doStart() {
-        source.start()
-    }
-
-    override fun start() {
-        doStart()
-    }
-
-    override fun error(e: Throwable) {
-        doError(e)
-    }
-
-    override fun finish() {
-        doFinish()
-    }
-}
-
-class SourceTake<T>(source: Source<T>, val number: Int) : SourceOperator<T, T>(source) {
-    var count = 0
-
-    override fun start() {
-        super.start()
-        count = 0
-    }
-
-    override fun next(v: T) {
-        if (count < number) {
-            count++
-            doNext(v)
-        } else {
-            finish()
-        }
-    }
-
-    override fun error(e: Throwable) {
-        if (count < number) {
-            count++
-            doError(e)
-        } else {
-            finish()
-        }
-    }
-
-    override fun finish() {
-        doFinish()
-    }
-}
-
-class SourceToStream<T>(val source: Source<T>) : BaseStream<T>(), Receiver<T> {
-
-    val queue : LinkedTransferQueue<Any> = LinkedTransferQueue()
-    object finished
-    init {
-        source.receiver = this
-    }
-
-    fun doStart() {
-        source.start()
-    }
-
-    override fun start() {
-        queue.clear()
-        doStart()
-    }
-
-    override fun next(v: T) {
-        queue.add(v)
-    }
-
-    override fun error(e: Throwable) {
-        queue.add(e)
-    }
-
-    override fun finish() {
-        queue.add(finished)
-    }
-
-    override fun request(n: Int) {
-        for (i in 0 until n) {
-            requestOne()
-        }
-    }
-
-    private fun requestOne() {
-        val a = queue.take()
-        if (a is Throwable) {
-            doError(a)
-        } else if (a == finished) {
-            doFinish()
-        } else {
-            doNext(a as T)
-        }
-    }
-}
-
-fun <T> Source<T>.asStream() : Stream<T> {
-    return SourceToStream(this)
-}
-
-fun <T> Source<T>.take(n: Int) : Source<T> {
-    return SourceTake(this, n)
-}
-
-class IntervalSource(val ms:Long) : BaseSource<Int>() {
+class IntervalSource(val ms:Long) : Source<Int>() {
 
     var count = 0
 
-    override fun start() {
+    override fun reset() {
         count = 0
         Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate({
-            doNext(count)
+            next(count)
             count++
         }, 0, ms, TimeUnit.MILLISECONDS)
     }
 }
+
+//fun <T> Source<T>.asStream() : Stream<T> {
+//    return SourceToStream(this)
+//}
+//
+//class SourceTake<T>(source: Source<T>, val number: Int) : SourceOperator<T, T>(source) {
+//    var count = 0
+//
+//    override fun start() {
+//        super.start()
+//        count = 0
+//    }
+//
+//    override fun next(v: T) {
+//        if (count < number) {
+//            count++
+//            doNext(v)
+//        } else {
+//            finish()
+//        }
+//    }
+//
+//    override fun error(e: Throwable) {
+//        if (count < number) {
+//            count++
+//            doError(e)
+//        } else {
+//            finish()
+//        }
+//    }
+//
+//    override fun finish() {
+//        doFinish()
+//    }
+//}
+//
+//class ToStream<T>(context: Context<*, T>) {
+//
+//    val queue : LinkedTransferQueue<Any> = LinkedTransferQueue()
+//    object finished
+//    init {
+//        source.receiver = this
+//    }
+//
+//    fun doStart() {
+//        source.start()
+//    }
+//
+//    override fun reset() {
+//        queue.clear()
+//        doStart()
+//    }
+//
+//    override fun next(v: T) {
+//        queue.add(v)
+//    }
+//
+//    override fun error(e: Throwable) {
+//        queue.add(e)
+//    }
+//
+//    override fun finish() {
+//        queue.add(finished)
+//    }
+//
+//    val request = object : EasyMethod<Int>() {
+//        override fun invoke(n: Int) {
+//            for (i in 0 until n) {
+//                requestOne()
+//            }
+//        }
+//    }
+//
+//    private fun requestOne() {
+//        val a = queue.take()
+//        if (a is Throwable) {
+//            doError(a)
+//        } else if (a == finished) {
+//            doFinish()
+//        } else {
+//            doNext(a as T)
+//        }
+//    }
+//}
+//
+//
+//
+//fun <T> Source<T>.take(n: Int) : Source<T> {
+//    return SourceTake(this, n)
+//}
+//

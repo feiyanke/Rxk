@@ -178,43 +178,43 @@ class RepeatStream<T>(stream: Stream<T>, val n:Int) : Operator<T, T>(stream) {
     }
 }
 
-fun <T> Stream<T>.repeat(n:Int):Stream<T> {
-    return RepeatStream<T>(this, n)
-}
-
-fun <T> Stream<T>.filter(predicate: (T) -> Boolean) : Stream<T> {
-    return Filter(this, predicate)
-}
-
-fun <T, R> Stream<T>.map(transform: (T) -> R) : Stream<R> {
-    return Map(this, transform)
-}
-
-fun <T> Stream<T>.forEach(block:(T)->Unit) : Stream<T> {
-    return ForEach(this, block)
-}
-
-fun <T> Stream<T>.error(block: (e: Throwable) -> Unit) : Stream<T> {
-    return Error(this, block)
-}
-
-fun <T> Stream<T>.ignoreError(block: (e: Throwable) -> Unit) : Stream<T> {
-    return IgnoreError(this, block)
-}
-
-fun <T> Stream<T>.finish(block: () -> Unit = {}) {
-    receiver = Finish(block)
-    start()
-    request()
-}
-
-fun <T> Stream<T>.on(executor: Executor) : Stream<T> {
-    return Scheduler(this, executor)
-}
-
-fun <T> Stream<T>.take(count:Int) :Stream<T> {
-    return Take(this, count)
-}
-
-
-fun <T> Iterable<T>.asStream() = IterableStream(this)
+//fun <T> Stream<T>.repeat(n:Int):Stream<T> {
+//    return RepeatStream<T>(this, n)
+//}
+//
+//fun <T> Stream<T>.filter(predicate: (T) -> Boolean) : Stream<T> {
+//    return Filter(this, predicate)
+//}
+//
+//fun <T, R> Stream<T>.map(transform: (T) -> R) : Stream<R> {
+//    return Map(this, transform)
+//}
+//
+//fun <T> Stream<T>.forEach(block:(T)->Unit) : Stream<T> {
+//    return ForEach(this, block)
+//}
+//
+//fun <T> Stream<T>.error(block: (e: Throwable) -> Unit) : Stream<T> {
+//    return Error(this, block)
+//}
+//
+//fun <T> Stream<T>.ignoreError(block: (e: Throwable) -> Unit) : Stream<T> {
+//    return IgnoreError(this, block)
+//}
+//
+//fun <T> Stream<T>.finish(block: () -> Unit = {}) {
+//    receiver = Finish(block)
+//    start()
+//    request()
+//}
+//
+//fun <T> Stream<T>.on(executor: Executor) : Stream<T> {
+//    return Scheduler(this, executor)
+//}
+//
+//fun <T> Stream<T>.take(count:Int) :Stream<T> {
+//    return Take(this, count)
+//}
+//
+//
+//fun <T> Iterable<T>.asStream() = IterableStream(this)
