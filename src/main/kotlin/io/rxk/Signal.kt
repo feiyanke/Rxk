@@ -1,9 +1,13 @@
 package io.rxk
 
-interface ISignal<S> : IEasyMethod<S>, IContextBuilder<S, S> {
-    fun next(v:S) = output(v)
+open class Signal<S> : EasyMethod<S>() {
     override fun invoke(s: S) = output(s)
-    override fun makeContext(ctx: IContext<*, S>): IContext<*, S> = Context(this)
+    open fun next(v:S) = output(v)
+    open val error : IEasyMethod<Throwable> = EmptyMethod()
+    open val finish : IUnitMethod = EmptyUnitMethod()
+    open val request : IEasyMethod<Int> = EmptyMethod()
+    open val reset : IUnitMethod = EmptyUnitMethod()
+    fun makeContext(): Context<S, S> = Context(this, error, finish, request, reset)
 }
 
 

@@ -1,49 +1,14 @@
 package io.rxk
 
-interface IMethod<in T, R> : (T)->Unit, ()->Unit {
-    override fun invoke() {}
+interface IMethod<in T, R> : (T)->Unit {
     var output : (R)->Unit
 }
 
-inline fun <T, R> method(crossinline block:IMethod<T, R>.(T)->Unit) : IMethod<T, R> {
-    return object : Method<T, R>() {
-        override fun invoke(v: T) {
-            block(v)
-        }
-    }
-}
-
-inline fun <T, R> lambda(crossinline block:(T)->R) : IMethod<T, R> {
-    return object : Method<T, R>() {
-        override fun invoke(v: T) {
-            output(block(v))
-        }
-    }
-}
-
-inline fun <T> method(crossinline block:IEasyMethod<T>.(T)->Unit) : IEasyMethod<T> {
-    return object : EasyMethod<T>() {
-        override fun invoke(v: T) {
-            block(v)
-        }
-    }
-}
-
-inline fun <T> lambda(crossinline block:(T)->T) : IEasyMethod<T> {
-    return object : EasyMethod<T>() {
-        override fun invoke(v: T) {
-            output(block(v))
-        }
-    }
-}
-
-fun <T, R> IMethod<T, R>.out(o:(R)->Unit):IMethod<T, R> = apply { output = o }
-fun <T, E, R> IMethod<T, R>.chain(method: IMethod<R, E>) : IMethod<T, E> = Chain(this, method)
-
 interface IEasyMethod<T> : IMethod<T, T>
 
-fun <T> IEasyMethod<T>.chain(method: IEasyMethod<T>) : IEasyMethod<T> {
-    return EasyChain(this, method)
+interface IUnitMethod : IEasyMethod<Unit>, ()->Unit {
+    override fun invoke() = invoke(Unit)
+    fun output() = output(Unit)
 }
 
 interface IChain<in T, R> : IMethod<T, R> {
@@ -65,12 +30,14 @@ abstract class Method<in T, R> : IMethod<T, R> {
 
 abstract class EasyMethod<T> : Method<T, T>(), IEasyMethod<T>
 
+abstract class UnitMethod : EasyMethod<Unit>(), IUnitMethod
+
 open class EmptyMethod<T> : EasyMethod<T>() {
-    override fun invoke(p1: T) = output(p1)
+    override fun invoke(v: T) = output(v)
 }
 
-open class UnitMethod : EmptyMethod<Unit>() {
-    override fun invoke() = invoke(Unit)
+open class EmptyUnitMethod : UnitMethod() {
+    override fun invoke(v: Unit) = output(v)
 }
 
 open class Chain<in T, E, R>(a: IMethod<T, E>, b: IMethod<E, R>) : IChain<T, R> {
@@ -80,3 +47,34 @@ open class Chain<in T, E, R>(a: IMethod<T, E>, b: IMethod<E, R>) : IChain<T, R> 
 }
 
 class EasyChain<T>(a: IEasyMethod<T>, b: IEasyMethod<T>) : Chain<T, T, T>(a,b), IEasyChain<T>
+
+inline fun <T, R> method(crossinline block:IMethod<T, R>.(T)->Unit) : IMethod<T, R> {
+    return object : Method<T, R>() {
+        override fun invoke(v: T) {
+            block(v)
+        }
+    }
+}
+
+inline fun <T> method(crossinline block:IEasyMethod<T>.(T)->Unit) : IEasyMethod<T> {
+    return object : EasyMethod<T>() {
+        override fun invoke(v: T) {
+            block(v)
+        }
+    }
+}
+
+inline fun method(crossinline block: IUnitMethod.() -> Unit) : IUnitMethod {
+    return object : UnitMethod() {
+        override fun invoke(p1: Unit) {
+            block()
+        }
+
+    }
+}
+
+fun <T, R> IMethod<T, R>.out(o:(R)->Unit):IMethod<T, R> = apply { output = o }
+fun <T, E, R> IMethod<T, R>.chain(method: IMethod<R, E>) : IMethod<T, E> = Chain(this, method)
+fun <T> IEasyMethod<T>.chain(method: IEasyMethod<T>) : IEasyMethod<T> {
+    return EasyChain(this, method)
+}

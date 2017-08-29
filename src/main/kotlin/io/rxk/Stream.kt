@@ -3,25 +3,25 @@ package io.rxk
 import java.util.concurrent.Callable
 import java.util.concurrent.Future
 
-interface IStream<T> : ISource<T> {
-    fun request(n:Int)
-    override fun makeContext(ctx: IContext<*, T>): IContext<*, T> {
-        return super.makeContext(ctx).apply { request.out { this@IStream.request(it) } }
-    }
-}
+//abstract open class Stream<T> : Source<T> {
+//    abstract fun request(n:Int)
+//    override fun makeContext(ctx: IContext<*, T>): IContext<*, T> {
+//        return super.makeContext(ctx).apply { request.out { this@IStream.request(it) } }
+//    }
+//}
 
-abstract class Stream<T> : IStream<T> {
-    override var output: (T) -> Unit = {}
-    open val error : IEasyMethod<Throwable> = ErrorMethod()
-    open val finish : IEasyMethod<Unit> = FinishMethod()
+abstract class Stream<T> : Source<T>() {
+
+    abstract fun request(n:Int)
+    override val request = method<Int> { request(it) }
 
     companion object {
-        fun empty() = EmptyStream()
-        fun never() = NeverStream()
-        fun throws(e:Throwable) = ThrowStream(e)
-        fun <T> from(iterable: Iterable<T>) = IterableStream(iterable)
-        fun <T> create(block:Source<T>.()->Unit) : IContext<*, T> = Source.create(block).asStream()
-        fun fromRunable(block:()->Unit):Stream<Unit> {
+        fun empty() = EmptyStream().makeContext()
+        fun never() = NeverStream().makeContext()
+        fun throws(e:Throwable) = ThrowStream(e).makeContext()
+        fun <T> from(iterable: Iterable<T>) = IterableStream(iterable).makeContext()
+        fun <T> create(block:Source<T>.()->Unit) : Context<T, T> = Source.create(block).asStream()
+        fun fromRunable(block:()->Unit):Context<Unit, Unit> {
             return object : Stream<Unit>() {
                 override fun request(n: Int) {
                     try {
@@ -34,14 +34,14 @@ abstract class Stream<T> : IStream<T> {
                 }
 
                 override fun reset() {}
-            }
+            }.makeContext()
         }
 
-        fun from(runnable: Runnable):Stream<Unit> {
+        fun from(runnable: Runnable):Context<Unit, Unit> {
             return fromRunable(runnable::run)
         }
 
-        fun <T> fromCallable(callable:()->T) : Stream<T> {
+        fun <T> fromCallable(callable:()->T) : Context<T, T> {
             return object : Stream<T>() {
                 override fun request(n: Int) {
                     try {
@@ -54,24 +54,24 @@ abstract class Stream<T> : IStream<T> {
                 }
 
                 override fun reset() {}
-            }
+            }.makeContext()
         }
 
-        fun <T> from(callable: Callable<T>):Stream<T> {
+        fun <T> from(callable: Callable<T>):Context<T, T> {
             return fromCallable(callable::call)
         }
 
-        fun <T> from(future: Future<T>):Stream<T> {
+        fun <T> from(future: Future<T>):Context<T, T> {
             return fromCallable(future::get)
         }
 
-        fun interval(ms: Long):Stream<Int> = Source.interval(ms).asStream()
+        fun interval(ms: Long):Context<Int, Int> = Source.interval(ms).asStream()
 
-        fun <T> just(v:T) : Stream<T> {
+        fun <T> just(v:T) : Context<T, T> {
             return fromCallable { v }
         }
 
-        fun range(start:Int, count:Int) : Stream<Int> {
+        fun range(start:Int, count:Int) : Context<Int, Int> {
             return from(start until start+count)
         }
     }

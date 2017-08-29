@@ -1,111 +1,129 @@
 package io.rxk
 
-open class ErrorMethod : EmptyMethod<Throwable>()
-open class FinishMethod : UnitMethod()
-open class RequestMethod : EmptyMethod<Int>()
-open class ResetMethod : UnitMethod()
+//open class ErrorMethod : EmptyMethod<Throwable>()
+//open class FinishMethod : UnitMethod()
+//open class RequestMethod : EmptyMethod<Int>()
+//open class ResetMethod : UnitMethod()
+//
+//inline fun errorMethod(crossinline block:ErrorMethod.(Throwable)->Unit) : ErrorMethod {
+//    return object : ErrorMethod() {
+//        override fun invoke(v: Throwable) {
+//            block(v)
+//        }
+//    }
+//}
+//
+//inline fun errorLambda(crossinline block:(Throwable)->Throwable) : ErrorMethod {
+//    return object : ErrorMethod() {
+//        override fun invoke(v:Throwable) {
+//            output(block(v))
+//        }
+//    }
+//}
+//
+//inline fun finishMethod(crossinline block:FinishMethod.()->Unit) : FinishMethod {
+//    return object : FinishMethod() {
+//        override fun invoke(v:Unit) {
+//            block()
+//        }
+//    }
+//}
+//
+//inline fun finishLambda(crossinline block:()->Unit) : FinishMethod {
+//    return object : FinishMethod() {
+//        override fun invoke(v:Unit) {
+//            block()
+//            output(Unit)
+//        }
+//    }
+//}
+//
+//inline fun requestMethod(crossinline block:RequestMethod.(Int)->Unit) : RequestMethod {
+//    return object : RequestMethod() {
+//        override fun invoke(v:Int) {
+//            block(v)
+//        }
+//    }
+//}
+//
+//inline fun requestLambda(crossinline block:(Int)->Int) : RequestMethod {
+//    return object : RequestMethod() {
+//        override fun invoke(v:Int) {
+//            output(block(v))
+//        }
+//    }
+//}
+//
+//
+//inline fun resetMethod(crossinline block:ResetMethod.()->Unit) : ResetMethod {
+//    return object : ResetMethod() {
+//        override fun invoke(v:Unit) {
+//            block()
+//        }
+//    }
+//}
+//
+//inline fun resetLambda(crossinline block:()->Unit) : ResetMethod {
+//    return object : ResetMethod() {
+//        override fun invoke(v:Unit) {
+//            block()
+//            output(Unit)
+//        }
+//    }
+//}
 
-inline fun errorMethod(crossinline block:ErrorMethod.(Throwable)->Unit) : ErrorMethod {
-    return object : ErrorMethod() {
-        override fun invoke(v: Throwable) {
-            block(v)
-        }
-    }
-}
+//interface IContext<T, R> {
+//    var next : IMethod<T, R>
+//    var error : IEasyMethod<Throwable>
+//    var finish : IEasyMethod<Unit>
+//    var request : IEasyMethod<Int>
+//    var reset : IEasyMethod<Unit>
+//
+//
+//}
+//
+//class EmptyContext<T> : Context<T, T>(EmptyMethod())
 
-inline fun errorLambda(crossinline block:(Throwable)->Throwable) : ErrorMethod {
-    return object : ErrorMethod() {
-        override fun invoke(v:Throwable) {
-            output(block(v))
-        }
-    }
-}
+class Context<T, R> (
+    var next : IMethod<T, R>,
+    var error : IEasyMethod<Throwable> = EmptyMethod(),
+    var finish : IEasyMethod<Unit> = EmptyMethod(),
+    var request : IEasyMethod<Int> = EmptyMethod(),
+    var reset : IEasyMethod<Unit> = EmptyMethod()
+) {
+    fun asStream() = make(AsStream())
 
-inline fun finishMethod(crossinline block:FinishMethod.()->Unit) : FinishMethod {
-    return object : FinishMethod() {
-        override fun invoke(v:Unit) {
-            block()
-        }
-    }
-}
+    private fun <E> make(m:ContextMethod<R, E>) = make(m.next, m.error, m.finish, m.request, m.reset)
+    private fun make(m:EasyContextMethod<R>) = make(m.next, m.error, m.finish, m.request, m.reset)
 
-inline fun finishLambda(crossinline block:()->Unit) : FinishMethod {
-    return object : FinishMethod() {
-        override fun invoke(v:Unit) {
-            block()
-            output(Unit)
-        }
-    }
-}
-
-inline fun requestMethod(crossinline block:RequestMethod.(Int)->Unit) : RequestMethod {
-    return object : RequestMethod() {
-        override fun invoke(v:Int) {
-            block(v)
-        }
-    }
-}
-
-inline fun requestLambda(crossinline block:(Int)->Int) : RequestMethod {
-    return object : RequestMethod() {
-        override fun invoke(v:Int) {
-            output(block(v))
-        }
-    }
-}
-
-
-inline fun resetMethod(crossinline block:ResetMethod.()->Unit) : ResetMethod {
-    return object : ResetMethod() {
-        override fun invoke(v:Unit) {
-            block()
-        }
-    }
-}
-
-inline fun resetLambda(crossinline block:()->Unit) : ResetMethod {
-    return object : ResetMethod() {
-        override fun invoke(v:Unit) {
-            block()
-            output(Unit)
-        }
-    }
-}
-
-interface IContext<T, R> {
-    var next : IMethod<T, R>
-    var error : IEasyMethod<Throwable>
-    var finish : IEasyMethod<Unit>
-    var request : IEasyMethod<Int>
-    var reset : IEasyMethod<Unit>
-
-    fun asStream() = AsStream<R>().makeContext(this)
-
-    fun <E> make(next : IMethod<R, E>,
-                 error : IEasyMethod<Throwable>? = null,
-                 finish : IEasyMethod<Unit>? = null,
-                 request : IEasyMethod<Int>? = null,
-                 reset : IEasyMethod<Unit>? = null
-    ) : IContext<*, E> = chainNext(next).apply {
+    private fun <E> make(next : IMethod<R, E>,
+                         error : IEasyMethod<Throwable>? = null,
+                         finish : IEasyMethod<Unit>? = null,
+                         request : IEasyMethod<Int>? = null,
+                         reset : IEasyMethod<Unit>? = null
+    ) : Context<T, E> = chainNext(next).apply {
         chainError(error)
         chainFinish(finish)
         chainRequest(request)
         chainReset(reset)
     }
 
-    fun make(error : IEasyMethod<Throwable>? = null,
-             finish : IEasyMethod<Unit>? = null,
-             request : IEasyMethod<Int>? = null,
-             reset : IEasyMethod<Unit>? = null
-    ) : IContext<*, R> = apply {
+    private fun make(next : IEasyMethod<R>? = null,
+                     error : IEasyMethod<Throwable>? = null,
+                     finish : IEasyMethod<Unit>? = null,
+                     request : IEasyMethod<Int>? = null,
+                     reset : IEasyMethod<Unit>? = null
+    ) : Context<T, R> = apply {
+        chainNext(next)
         chainError(error)
         chainFinish(finish)
         chainRequest(request)
         chainReset(reset)
     }
 
-    private fun <E> chainNext(m:IMethod<R, E>) : IContext<T, E> {
-        return Context(next.chain(m), error, finish, request, reset)
+    private fun <E> chainNext(m:IMethod<R, E>) : Context<T, E> = Context(next.chain(m), error, finish, request, reset)
+    private fun chainNext(m:IEasyMethod<R>?) {
+        if (m!=null) next = next.chain(m)
     }
 
     private fun chainError(m:IEasyMethod<Throwable>?) {
@@ -124,16 +142,6 @@ interface IContext<T, R> {
         if (m!=null)reset = m.chain(reset)
     }
 }
-
-class EmptyContext<T> : Context<T, T>(EmptyMethod())
-
-open class Context<T, R> (
-    override var next : IMethod<T, R>,
-    override var error : IEasyMethod<Throwable> = EmptyMethod(),
-    override var finish : IEasyMethod<Unit> = EmptyMethod(),
-    override var request : IEasyMethod<Int> = EmptyMethod(),
-    override var reset : IEasyMethod<Unit> = EmptyMethod()
-)  : IContext<T, R>
 
 //abstract class TestStart<T> {
 //    abstract fun reset()
