@@ -15,6 +15,8 @@ open class SourceContext<T, R> (
         var reset : IEasyMethod<Unit>)
     : SignalContext<T, R>(next, error, finish) {
 
+    open fun start() = reset(Unit)
+
     override fun <E> make(next : IMethod<R, E>,
                            error : IEasyMethod<Throwable>?,
                            finish : IEasyMethod<Unit>?,

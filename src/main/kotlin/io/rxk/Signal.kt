@@ -1,5 +1,8 @@
 package io.rxk
 
+import java.util.concurrent.Executor
+import java.util.concurrent.Executors
+
 open class SignalContext<T, R> (
         var next : IMethod<T, R>,
         var error : IEasyMethod<Throwable>,
@@ -9,6 +12,10 @@ open class SignalContext<T, R> (
     fun filter(predicate:(R)->Boolean) = make(FilterOperator(predicate))
     fun <E> map(tranform:(R)->E) = make(MapOperator(tranform))
     fun forEash(count:Int = 0, block:(R)->Unit) = make(ForEachOperator(count, block))
+    fun finish(block: () -> Unit) = make(FinishOperator(block))
+    fun error(block: (e:Throwable) -> Unit) = make(ErrorOperator(block))
+    fun take(n:Int) = make(TakeOperator(n))
+    fun on(executor: Executor) = make(ScheduleOperator(executor))
 
     private fun makeStream(m:SignalToStreamOperator<R>) : StreamContext<T, R> {
         return StreamContext<T, R>(next, error, finish, m.reset, m.request).apply {

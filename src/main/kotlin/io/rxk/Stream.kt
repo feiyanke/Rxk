@@ -18,6 +18,16 @@ class StreamContext<T, R> (
         var request: IEasyMethod<Int>)
     : SourceContext<T, R>(next, error, finish, reset) {
 
+    override fun start() {
+        reset(Unit)
+        request(0)
+    }
+
+    fun start(count: Int) {
+        reset(Unit)
+        request(count)
+    }
+
     override fun <E> make(next : IMethod<R, E>,
                           error : IEasyMethod<Throwable>?,
                           finish : IEasyMethod<Unit>?,
