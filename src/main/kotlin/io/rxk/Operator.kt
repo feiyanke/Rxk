@@ -42,7 +42,7 @@ abstract class SignalToStreamOperator<R> {
     abstract val request : IEasyMethod<Int>
 }
 
-class ToStream<S> : SignalToStreamOperator<S>() {
+class SignalToStream<S> : SignalToStreamOperator<S>() {
     private object finished
     private val queue : LinkedTransferQueue<Any> = LinkedTransferQueue()
     override val next = method<S> { queue.add(it) }
@@ -64,21 +64,6 @@ class ToStream<S> : SignalToStreamOperator<S>() {
     }
 }
 
-
-/*abstract class Operation<R, E>(c: Context<*, R>) {
-    abstract val next : Method<R, E>
-    open val error : EmptyMethod<Throwable>? = null
-    open val finish : EmptyMethod<Unit>? = null
-    open val request : EmptyMethod<Int>? = null
-    open val reset : EmptyMethod<Unit>? = null
-    val context : Context<*, E>
-    init {
-        context = c.chainNext(next).chainError(error).chainFinish(finish).chainRequest(request).chainReset(reset)
-    }
-}
-
-abstract open class EasyOperation<T>(c: Context<*, T>) : Operation<T, T>(c)
-*/
 class FilterOperator<T>(predicate: (T) -> Boolean) : EasyOperator<T>() {
     override val error = EmptyMethod<Throwable>()
     override val request = EmptyMethod<Int>()
@@ -95,7 +80,7 @@ class FilterOperator<T>(predicate: (T) -> Boolean) : EasyOperator<T>() {
 }
 
 
-class MapOperation<R, E>(transform: (R) -> E) : Operator<R, E>() {
+class MapOperator<in R, E>(transform: (R) -> E) : Operator<R, E>() {
 
     override val error = EmptyMethod<Throwable>()
 
@@ -110,36 +95,20 @@ class MapOperation<R, E>(transform: (R) -> E) : Operator<R, E>() {
     }
 }
 
-//fun <R, E> Context<*, R>.map(transform: (R) -> E) : Context<*, E> {
-//    val error = EmptyMethod<Throwable>()
-//    val next = object : Method<R, E>() {
-//        override fun invoke(p1: R) {
-//            try {
-//                output(transform(p1))
-//            } catch (e : Throwable) {
-//                error(e)
-//            }
-//        }
-//    }
-//    return chainNext(next).chainError(error)
-//}
-//
-//fun <R> Context<*, R>.filter(predicate: (R) -> Boolean) : Context<*, R> {
-//    val error = EmptyMethod<Throwable>()
-//    val request = EmptyMethod<Int>()
-//    val next = object : EasyMethod<R>() {
-//        override fun invoke(p1: R) {
-//            try {
-//                if (predicate(p1)) output(p1)
-//                else request(1)
-//            } catch (e : Throwable) {
-//                error(e)
-//            }
-//        }
-//    }
-//    return chainNext(next).chainError(error).chainRequest(request)
-//}
-//
+class ForEachOperator<T>(count:Int = 0, block:(T)->Unit):EasyOperator<T>() {
+    override val error = EmptyMethod<Throwable>()
+    override val request = EmptyMethod<Int>()
+    override val next = method<T> {
+        try {
+            block(it)
+            request(count)
+        } catch (e:Throwable) {
+            error(e)
+        }
+    }
+}
+
+
 //fun <R> Context<*, R>.forEach(n:Int = 1, block:(R)->Unit):Context<*, R> {
 //    val error = EmptyMethod<Throwable>()
 //    next.out {

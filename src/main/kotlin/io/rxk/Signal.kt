@@ -4,12 +4,13 @@ open class SignalContext<T, R> (
         var next : IMethod<T, R>,
         var error : IEasyMethod<Throwable>,
         var finish : IEasyMethod<Unit>
-        //var request : IEasyMethod<Int> = EmptyMethod(),
-        //var reset : IEasyMethod<Unit> = EmptyMethod()
 ) {
-    fun asStream() = makeStream(ToStream())
+    fun asStream() = makeStream(SignalToStream())
+    fun filter(predicate:(R)->Boolean) = make(FilterOperator(predicate))
+    fun <E> map(tranform:(R)->E) = make(MapOperator(tranform))
+    fun forEash(count:Int = 0, block:(R)->Unit) = make(ForEachOperator(count, block))
 
-    protected fun makeStream(m:SignalToStreamOperator<R>) : StreamContext<T, R> {
+    private fun makeStream(m:SignalToStreamOperator<R>) : StreamContext<T, R> {
         return StreamContext<T, R>(next, error, finish, m.reset, m.request).apply {
             chainNext(m.next)
             chainError(m.error)
@@ -28,8 +29,6 @@ open class SignalContext<T, R> (
     ) : SignalContext<T, E> = chainNext(next).apply {
         chainError(error)
         chainFinish(finish)
-        //chainRequest(request)
-        //chainReset(reset)
     }
 
     open protected fun make(next : IEasyMethod<R>? = null,
@@ -41,8 +40,6 @@ open class SignalContext<T, R> (
         chainNext(next)
         chainError(error)
         chainFinish(finish)
-        //chainRequest(request)
-        //chainReset(reset)
     }
 
     private fun <E> chainNext(m:IMethod<R, E>) : SignalContext<T, E>
