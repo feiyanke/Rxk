@@ -81,6 +81,10 @@ interface IContext<T, R> {
 
     fun asStream() = AsStream<R>().makeContext(this)
 
+    fun <S, E> map(transfor: (S) -> E) {
+
+    }
+
     fun <E> make(next : IMethod<R, E>,
                  error : IEasyMethod<Throwable>? = null,
                  finish : IEasyMethod<Unit>? = null,
@@ -234,18 +238,18 @@ class MapOperation<R, E>(c: Context<*, R>, transform: (R) -> E) {
     }
 }*/
 
-//fun <R, E> Context<*, R>.map(transform: (R) -> E) : Context<*, E> {
-//    val error = EmptyMethod<Throwable>()
-//    val next = object : Method<R, E>() {
-//        override fun invoke(p1: R) {
-//            try {
-//                output(transform(p1))
-//            } catch (e : Throwable) {
-//                error(e)
-//            }
-//        }
-//    }
-//    return chainNext(next).chainError(error)
+fun <R, E> Context<*, R>.map(transform: (R) -> E) : IContext<*, E> {
+    val error = EmptyMethod<Throwable>()
+    val next = object : Method<R, E>() {
+        override fun invoke(p1: R) {
+            try {
+                output(transform(p1))
+            } catch (e : Throwable) {
+                error(e)
+            }
+        }
+    }
+    return make(next = next, error = error)
 //}
 //
 //fun <R> Context<*, R>.filter(predicate: (R) -> Boolean) : Context<*, R> {
