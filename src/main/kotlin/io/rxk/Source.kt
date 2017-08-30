@@ -2,27 +2,60 @@ package io.rxk
 
 import java.util.concurrent.*
 
-interface ISource<S> : ISignal<S> {
-    fun reset()
-    override fun makeContext(ctx: IContext<*, S>): IContext<*, S> {
-        return super.makeContext(ctx).apply { reset.out { this@ISource.reset() } }
+//interface ISource<S> : ISignal<S> {
+//    fun reset()
+//    override fun makeContext(): Context<S, S> {
+//        return super.makeContext().apply { reset.out { this@ISource.reset() } }
+//    }
+//}
+open class SourceContext<T, R> (
+        next : IMethod<T, R>,
+        error : IEasyMethod<Throwable>,
+        finish : IEasyMethod<Unit>,
+        var reset : IEasyMethod<Unit>)
+    : SignalContext<T, R>(next, error, finish) {
+
+    override fun <E> make(next : IMethod<R, E>,
+                           error : IEasyMethod<Throwable>?,
+                           finish : IEasyMethod<Unit>?,
+                           request : IEasyMethod<Int>?,
+                           reset : IEasyMethod<Unit>?
+    ) : SourceContext<T, E> = chainNext(next).apply {
+        chainError(error)
+        chainFinish(finish)
+        chainReset(reset)
     }
+
+    override fun make(next : IEasyMethod<R>?,
+                       error : IEasyMethod<Throwable>?,
+                       finish : IEasyMethod<Unit>?,
+                       request : IEasyMethod<Int>?,
+                       reset : IEasyMethod<Unit>?
+    ) : SourceContext<T, R> = apply {
+        chainNext(next)
+        chainError(error)
+        chainFinish(finish)
+        chainReset(reset)
+    }
+
+    private fun <E> chainNext(m:IMethod<R, E>) : SourceContext<T, E>
+            = SourceContext(next.chain(m), error, finish, reset)
+
+    protected fun chainReset(m:IEasyMethod<Unit>?) {
+        if (m!=null) reset = m.chain(reset)
+    }
+
 }
 
-abstract class Source<S> : ISource<S> {
+abstract class Source<S> : Signal<S>() {
 
-    override var output: (S) -> Unit = {}
-
-    val error = ErrorMethod()
-    val finish = FinishMethod()
-
-    override fun makeContext(ctx: IContext<*, S>): IContext<*, S> {
-        return super.makeContext(ctx).make(error = error, finish = finish)
-    }
+    abstract fun reset()
+    val reset = method { reset() }
+    override fun makeContext(): SourceContext<S, S> = SourceContext(this, error, finish, reset)
 
     companion object {
-        fun <T> create(block:Source<T>.()->Unit) : IContext<*, T> {
-            return object : Source<T>() {
+        fun <S> create(block:Source<S>.()->Unit) : SourceContext<S, S> {
+            return object : Source<S>() {
                 override fun reset() {
                     try {
                         block()
@@ -34,7 +67,7 @@ abstract class Source<S> : ISource<S> {
             }.makeContext()
         }
 
-        fun fromRunable(block:()->Unit):ISource<Unit> {
+        fun fromRunable(block:()->Unit):SourceContext<Unit, Unit> {
             return object : Source<Unit>() {
                 override fun reset() {
                     try {
@@ -45,14 +78,14 @@ abstract class Source<S> : ISource<S> {
                         finish()
                     }
                 }
-            }
+            }.makeContext()
         }
 
-        fun from(runnable: Runnable):ISource<Unit> {
+        fun from(runnable: Runnable):SourceContext<Unit, Unit> {
             return fromRunable(runnable::run)
         }
 
-        fun <T> fromCallable(callable:()->T) : ISource<T> {
+        fun <T> fromCallable(callable:()->T) : SourceContext<T, T> {
             return object : Source<T>() {
                 override fun reset() {
                     try {
@@ -63,18 +96,18 @@ abstract class Source<S> : ISource<S> {
                         finish()
                     }
                 }
-            }
+            }.makeContext()
         }
 
-        fun <T> from(callable: Callable<T>):ISource<T> {
+        fun <T> from(callable: Callable<T>):SourceContext<T, T> {
             return fromCallable(callable::call)
         }
 
-        fun <T> from(future: Future<T>):ISource<T> {
+        fun <T> from(future: Future<T>):SourceContext<T, T> {
             return fromCallable(future::get)
         }
 
-        fun interval(ms: Long):IContext<*, Int> {
+        fun interval(ms: Long):SourceContext<Int, Int> {
             return IntervalSource(ms).makeContext()
         }
     }

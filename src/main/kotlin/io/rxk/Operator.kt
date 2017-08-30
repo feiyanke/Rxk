@@ -1,7 +1,192 @@
-//package io.rxk
+package io.rxk
+
+import java.util.concurrent.LinkedTransferQueue
+
+abstract class Operator<in T, R> {
+    abstract val next : IMethod<T, R>
+    open val error : IEasyMethod<Throwable>? = null
+    open val finish : IEasyMethod<Unit>? = null
+    open val request : IEasyMethod<Int>? = null
+    open val reset : IEasyMethod<Unit>? = null
+}
+
+abstract class EasyOperator<R> {
+    open val next: IEasyMethod<R>? = null
+    open val error : IEasyMethod<Throwable>? = null
+    open val finish : IEasyMethod<Unit>? = null
+    open val request : IEasyMethod<Int>? = null
+    open val reset : IEasyMethod<Unit>? = null
+}
+
+abstract class SignalToSourceOperator<R> {
+    open val next: IEasyMethod<R>? = null
+    open val error : IEasyMethod<Throwable>? = null
+    open val finish : IEasyMethod<Unit>? = null
+    abstract val reset : IEasyMethod<Unit>
+}
+
+
+abstract class SourceToStreamOperator<R> {
+    open val next: IEasyMethod<R>? = null
+    open val error : IEasyMethod<Throwable>? = null
+    open val finish : IEasyMethod<Unit>? = null
+    open val reset : IEasyMethod<Unit>? = null
+    abstract val requset : IEasyMethod<Unit>
+}
+
+abstract class SignalToStreamOperator<R> {
+    open val next: IEasyMethod<R>? = null
+    open val error : IEasyMethod<Throwable>? = null
+    open val finish : IEasyMethod<Unit>? = null
+    abstract val reset : IEasyMethod<Unit>
+    abstract val request : IEasyMethod<Int>
+}
+
+class ToStream<S> : SignalToStreamOperator<S>() {
+    private object finished
+    private val queue : LinkedTransferQueue<Any> = LinkedTransferQueue()
+    override val next = method<S> { queue.add(it) }
+    override val error = method<Throwable> { queue.add(it) }
+    override val finish = method { queue.add(finished) }
+    override val reset = method { queue.clear();output() }
+    override val request = method<Int> {
+        for (i in 0 until it) {
+            val a = queue.take()
+            if (a is Throwable) {
+                error(a)
+            } else if (a == finished) {
+                finish()
+            } else {
+                next(a as S)
+            }
+        }
+        output(it)
+    }
+}
+
+
+/*abstract class Operation<R, E>(c: Context<*, R>) {
+    abstract val next : Method<R, E>
+    open val error : EmptyMethod<Throwable>? = null
+    open val finish : EmptyMethod<Unit>? = null
+    open val request : EmptyMethod<Int>? = null
+    open val reset : EmptyMethod<Unit>? = null
+    val context : Context<*, E>
+    init {
+        context = c.chainNext(next).chainError(error).chainFinish(finish).chainRequest(request).chainReset(reset)
+    }
+}
+
+abstract open class EasyOperation<T>(c: Context<*, T>) : Operation<T, T>(c)
+*/
+class FilterOperator<T>(predicate: (T) -> Boolean) : EasyOperator<T>() {
+    override val error = EmptyMethod<Throwable>()
+    override val request = EmptyMethod<Int>()
+    override val next = object : EasyMethod<T>() {
+        override fun invoke(p1: T) {
+            try {
+                if (predicate(p1)) output(p1)
+                else request(1)
+            } catch (e : Throwable) {
+                error(e)
+            }
+        }
+    }
+}
+
+
+class MapOperation<R, E>(transform: (R) -> E) : Operator<R, E>() {
+
+    override val error = EmptyMethod<Throwable>()
+
+    override val next = object : Method<R, E>() {
+        override fun invoke(p1: R) {
+            try {
+                output(transform(p1))
+            } catch (e : Throwable) {
+                error(e)
+            }
+        }
+    }
+}
+
+//fun <R, E> Context<*, R>.map(transform: (R) -> E) : Context<*, E> {
+//    val error = EmptyMethod<Throwable>()
+//    val next = object : Method<R, E>() {
+//        override fun invoke(p1: R) {
+//            try {
+//                output(transform(p1))
+//            } catch (e : Throwable) {
+//                error(e)
+//            }
+//        }
+//    }
+//    return chainNext(next).chainError(error)
+//}
 //
-//import java.util.concurrent.Executor
-//import kotlin.collections.Map
+//fun <R> Context<*, R>.filter(predicate: (R) -> Boolean) : Context<*, R> {
+//    val error = EmptyMethod<Throwable>()
+//    val request = EmptyMethod<Int>()
+//    val next = object : EasyMethod<R>() {
+//        override fun invoke(p1: R) {
+//            try {
+//                if (predicate(p1)) output(p1)
+//                else request(1)
+//            } catch (e : Throwable) {
+//                error(e)
+//            }
+//        }
+//    }
+//    return chainNext(next).chainError(error).chainRequest(request)
+//}
+//
+//fun <R> Context<*, R>.forEach(n:Int = 1, block:(R)->Unit):Context<*, R> {
+//    val error = EmptyMethod<Throwable>()
+//    next.out {
+//        try {
+//            block(it)
+//            request(1)
+//        } catch (e:Throwable) {
+//            error(e)
+//        }
+//    }
+//    return chainError(error)
+//}
+//
+//fun Context<*, *>.finish(block: () -> Unit) : Context<*, *> {
+//    finish.out {
+//        block()
+//    }
+//    return this
+//}
+//
+//fun Context<*, *>.error(block: (e:Throwable) -> Unit) : Context<*, *> {
+//    error.out {
+//        block(it)
+//    }
+//    return this
+//}
+//
+//fun Context<*, *>.start() {
+//    reset(Unit)
+//    request(1)
+//}
+//
+//fun main(args: Array<String>) {
+//    Context.from(0..100)
+//            .map { it*it }
+//            .filter { it % 2 == 0 }
+//            .map { it.toString() }
+//            //.filter { it.length < 3 }
+//            .forEach { println(it) }
+//            .finish {
+//                println("finished")
+//            }
+//            .error {println("error : " + it.printStackTrace())}
+//            .start()
+//}
+
+
 //
 //abstract class Operator<T, R>(val stream: Stream<T>) : BaseStream<R>(), Receiver<T> {
 //
