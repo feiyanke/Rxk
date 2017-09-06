@@ -38,23 +38,35 @@ class FilterOperator<T>(predicate: (T) -> Boolean) : EasyOperator<T>() {
     }
 }
 
+class MapCallbackOperator<in R, E>(callback:(R, (E)->Unit)->Unit):Operator<R, E>(){
+    override val error = empty<Throwable>()
+    override val next = method<R, E> {
+        try {
+            callback(it) {
+                output(it)
+            }
+        } catch (e:Throwable) {
+            error(e)
+        }
+    }
+}
+
+
 
 class MapOperator<in R, E>(transform: (R) -> E) : Operator<R, E>() {
 
     override val error = empty<Throwable>()
 
-    override val next = object : Method<R, E>() {
-        override fun invoke(p1: R) {
+    override val next = method<R, E> {
             try {
-                output(transform(p1))
+                output(transform(it))
             } catch (e : Throwable) {
                 error(e)
             }
         }
-    }
 }
 
-class ForEachOperator<T>(count:Int = 0, block:(T)->Unit):EasyOperator<T>() {
+class ForEachOperator<T>(block:(T)->Unit):EasyOperator<T>() {
     override val error = empty<Throwable>()
     override val report = empty()
     override val next = method<T> {
@@ -79,7 +91,7 @@ class TakeOperator<T>(val number:Int) : EasyOperator<T>() {
 
     var count = 0
     var finished = false;
-    override val finish = empty()
+    override val finish = method {}
     override val cancel = empty()
     override val report = empty()
     override val next = method<T> {
@@ -92,7 +104,7 @@ class TakeOperator<T>(val number:Int) : EasyOperator<T>() {
             } else {
                 finished = true
                 cancel()
-                finish()
+                finish.output()
             }
         }
     }
@@ -107,7 +119,7 @@ class TakeOperator<T>(val number:Int) : EasyOperator<T>() {
             } else {
                 finished = true
                 cancel()
-                finish()
+                finish.output()
             }
         }
 
@@ -115,15 +127,27 @@ class TakeOperator<T>(val number:Int) : EasyOperator<T>() {
 }
 
 class ScheduleOperator<T>(val scheduler : Executor) : EasyOperator<T>() {
+
     override val next = method<T> {
-        scheduler.execute { output(it) }
+        scheduler.execute { synchronized(this@ScheduleOperator) {output(it)} }
     }
 
     override val error = method<Throwable> {
-        scheduler.execute { output(it) }
+        scheduler.execute { synchronized(this@ScheduleOperator) {output(it)} }
     }
 
     override val finish = method {
-        scheduler.execute { output() }
+        scheduler.execute { synchronized(this@ScheduleOperator) {output()} }
     }
+}
+
+class LogOperator<T>(log:(T)->String) : EasyOperator<T>() {
+    override val next = method<T> {
+        println(log(it))
+        output(it)
+    }
+}
+
+class PackOperator<T>(n:Int):EasyOperator<T>(){
+    
 }

@@ -21,6 +21,9 @@ class BlockStream<R>(block:Stream<R>.()->Unit) : Stream<R>() {
             finish()
         }
     }
+    override val cancel = method {
+        next.output = {}
+    }
 }
 
 class RunableStream(block:()->Unit) : Stream<Unit>() {
