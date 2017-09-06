@@ -6,20 +6,36 @@ import java.util.concurrent.LinkedTransferQueue
 abstract class Operator<in T, R> {
     abstract val next : IMethod<T, R>
     open val error : IEasyMethod<Throwable>? = null
-    open val finish : IEasyMethod<Unit>? = null
-    open val request : IEasyMethod<Int>? = null
-    open val reset : IEasyMethod<Unit>? = null
+    open val finish : IUnitMethod? = null
+
+    open val start : IUnitMethod? = null
+    open val cancel : IUnitMethod? = null
+    open val report : IUnitMethod? = null
 }
 
 abstract class EasyOperator<R> {
+
     open val next: IEasyMethod<R>? = null
     open val error : IEasyMethod<Throwable>? = null
-    open val finish : IEasyMethod<Unit>? = null
-    open val request : IEasyMethod<Int>? = null
-    open val reset : IEasyMethod<Unit>? = null
+    open val finish : IUnitMethod? = null
+
+    open val start : IUnitMethod? = null
+    open val cancel : IUnitMethod? = null
+    open val report : IUnitMethod? = null
 }
 
-abstract class SignalToSourceOperator<R> {
+abstract class Stream<R> {
+    open val next: IEasyMethod<R> = empty<R>()
+    open val error : IEasyMethod<Throwable> = empty<Throwable>()
+    open val finish : IUnitMethod = empty()
+    open val start : IUnitMethod = empty()
+    open val cancel : IUnitMethod = empty()
+    open val report : IUnitMethod = empty()
+}
+
+
+
+/*abstract class SignalToSourceOperator<R> {
     open val next: IEasyMethod<R>? = null
     open val error : IEasyMethod<Throwable>? = null
     open val finish : IEasyMethod<Unit>? = null
@@ -63,16 +79,16 @@ class SignalToStream<S> : SignalToStreamOperator<S>() {
         }
         output(it)
     }
-}
+}*/
 
 class FilterOperator<T>(predicate: (T) -> Boolean) : EasyOperator<T>() {
-    override val error = EmptyMethod<Throwable>()
-    override val request = EmptyMethod<Int>()
+    override val error = empty<Throwable>()
+    override val report = empty()
     override val next = object : EasyMethod<T>() {
         override fun invoke(p1: T) {
             try {
                 if (predicate(p1)) output(p1)
-                else request(1)
+                else report()
             } catch (e : Throwable) {
                 error(e)
             }
@@ -83,7 +99,7 @@ class FilterOperator<T>(predicate: (T) -> Boolean) : EasyOperator<T>() {
 
 class MapOperator<in R, E>(transform: (R) -> E) : Operator<R, E>() {
 
-    override val error = EmptyMethod<Throwable>()
+    override val error = empty<Throwable>()
 
     override val next = object : Method<R, E>() {
         override fun invoke(p1: R) {
@@ -97,12 +113,12 @@ class MapOperator<in R, E>(transform: (R) -> E) : Operator<R, E>() {
 }
 
 class ForEachOperator<T>(count:Int = 0, block:(T)->Unit):EasyOperator<T>() {
-    override val error = EmptyMethod<Throwable>()
-    override val request = EmptyMethod<Int>()
+    override val error = empty<Throwable>()
+    override val report = empty()
     override val next = method<T> {
         try {
             block(it)
-            request(count)
+            report()
         } catch (e:Throwable) {
             error(e)
         }
@@ -117,42 +133,25 @@ class ErrorOperator<T>(block: (Throwable) -> Unit):EasyOperator<T>() {
     override val error = method<Throwable>{block(it)}
 }
 
-
-
-//
-//fun main(args: Array<String>) {
-//    Context.from(0..100)
-//            .map { it*it }
-//            .filter { it % 2 == 0 }
-//            .map { it.toString() }
-//            //.filter { it.length < 3 }
-//            .forEach { println(it) }
-//            .finish {
-//                println("finished")
-//            }
-//            .error {println("error : " + it.printStackTrace())}
-//            .start()
-//}
-
-
-
 class TakeOperator<T>(val number:Int) : EasyOperator<T>() {
 
     var count = 0
-
-    override val finish = EmptyUnitMethod()
-
-    override val reset = method {
-        count = 0
-        output()
-    }
-
+    var finished = false;
+    override val finish = empty()
+    override val cancel = empty()
+    override val report = empty()
     override val next = method<T> {
-        if (count < number) {
-            count++
-            output(it)
+        if (finished) {
+            report()
         } else {
-            finish()
+            if (count < number) {
+                count++
+                output(it)
+            } else {
+                cancel()
+                finish()
+                finished = true
+            }
         }
     }
 

@@ -8,7 +8,7 @@ import java.util.concurrent.*
 //        return super.makeContext().apply { reset.out { this@ISource.reset() } }
 //    }
 //}
-open class SourceContext<T, R> (
+/*open class SourceContext<T, R> (
         next : IMethod<T, R>,
         error : IEasyMethod<Throwable>,
         finish : IEasyMethod<Unit>,
@@ -126,7 +126,7 @@ class IntervalSource(val ms:Long) : Source<Int>() {
             count++
         }, 0, ms, TimeUnit.MILLISECONDS)
     }
-}
+}*/
 
 //fun <T> Source<T>.asStream() : Stream<T> {
 //    return SourceToStream(this)

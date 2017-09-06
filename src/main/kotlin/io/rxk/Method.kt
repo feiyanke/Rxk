@@ -1,8 +1,10 @@
 package io.rxk
 
-interface IMethod<in T, R> : (T)->Unit {
+interface ISink<R> {
     var output : (R)->Unit
 }
+
+interface IMethod<in T, R> : ISink<R>, (T)->Unit
 
 interface IEasyMethod<T> : IMethod<T, T>
 
@@ -47,6 +49,10 @@ open class Chain<in T, E, R>(a: IMethod<T, E>, b: IMethod<E, R>) : IChain<T, R> 
 }
 
 class EasyChain<T>(a: IEasyMethod<T>, b: IEasyMethod<T>) : Chain<T, T, T>(a,b), IEasyChain<T>
+class UnitChain(a: IUnitMethod, b: IUnitMethod) : Chain<Unit, Unit, Unit>(a,b), IUnitMethod
+
+fun empty() = EmptyUnitMethod()
+fun <T> empty() = EmptyMethod<T>()
 
 inline fun <T, R> method(crossinline block:IMethod<T, R>.(T)->Unit) : IMethod<T, R> {
     return object : Method<T, R>() {
@@ -75,6 +81,5 @@ inline fun method(crossinline block: IUnitMethod.() -> Unit) : IUnitMethod {
 
 fun <T, R> IMethod<T, R>.out(o:(R)->Unit):IMethod<T, R> = apply { output = o }
 fun <T, E, R> IMethod<T, R>.chain(method: IMethod<R, E>) : IMethod<T, E> = Chain(this, method)
-fun <T> IEasyMethod<T>.chain(method: IEasyMethod<T>) : IEasyMethod<T> {
-    return EasyChain(this, method)
-}
+fun <T> IEasyMethod<T>.chain(method: IEasyMethod<T>) : IEasyMethod<T> = EasyChain(this, method)
+fun IUnitMethod.chain(method: IUnitMethod) : IUnitMethod = UnitChain(this, method)

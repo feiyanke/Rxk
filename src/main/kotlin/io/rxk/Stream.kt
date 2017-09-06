@@ -10,7 +10,7 @@ import java.util.concurrent.Future
 //    }
 //}
 
-class StreamContext<T, R> (
+/*class StreamContext<T, R> (
         next : IMethod<T, R>,
         error : IEasyMethod<Throwable>,
         finish : IEasyMethod<Unit>,
@@ -189,5 +189,5 @@ class ThrowStream(val e:Throwable) : Stream<Unit>() {
         finish()
     }
 }
-
+*/
 
