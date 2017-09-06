@@ -1,6 +1,7 @@
 package io.rxk
 
 import java.util.concurrent.Executor
+import java.util.concurrent.LinkedTransferQueue
 
 abstract class Operator<in T, R> {
     abstract val next : IMethod<T, R>
@@ -148,6 +149,90 @@ class LogOperator<T>(log:(T)->String) : EasyOperator<T>() {
     }
 }
 
-class PackOperator<T>(n:Int):EasyOperator<T>(){
-    
+class PackOperator<T>(val n:Int):EasyOperator<T>(){
+    val queue : LinkedTransferQueue<T> = LinkedTransferQueue()
+    var finished = false
+    var count = 0
+
+    override val report = method {
+        count--
+        doo()
+    }
+
+    override val next = method<T> {
+        queue.add(it)
+        report.output()
+        doo()
+    }
+
+    override val finish = method { finished = true;doo() }
+
+    @Synchronized fun doo() {
+
+        if (count<=0) {
+            if (queue.size>=n) {
+                count = n
+                for (i in 0 until n) {
+                    next.output(queue.take())
+                }
+
+            } else if (finished) {
+                if (queue.isNotEmpty()) {
+                    count = queue.size
+                    for (i in 0 until queue.size) {
+                        next.output(queue.take())
+                    }
+                } else {
+                    finish.output()
+                }
+            }
+        }
+    }
 }
+
+/*class SourceToStream<T>(val source: Source<T>) : BaseStream<T>(), Receiver<T> {
+
+    val queue : LinkedTransferQueue<Any> = LinkedTransferQueue()
+    object finished
+    init {
+        source.receiver = this
+    }
+
+    fun doStart() {
+        source.start()
+    }
+
+    override fun start() {
+        queue.clear()
+        doStart()
+    }
+
+    override fun next(v: T) {
+        queue.add(v)
+    }
+
+    override fun error(e: Throwable) {
+        queue.add(e)
+    }
+
+    override fun finish() {
+        queue.add(finished)
+    }
+
+    override fun request(n: Int) {
+        for (i in 0 until n) {
+            requestOne()
+        }
+    }
+
+    private fun requestOne() {
+        val a = queue.take()
+        if (a is Throwable) {
+            doError(a)
+        } else if (a == finished) {
+            doFinish()
+        } else {
+            doNext(a as T)
+        }
+    }
+}*/

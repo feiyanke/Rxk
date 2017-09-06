@@ -24,6 +24,7 @@ class Context<T, R> (
     fun on(executor: Executor) = make(ScheduleOperator(executor))
     fun log(block: (R) -> String) = make(LogOperator(block))
     fun parallel() = on(Executors.newCachedThreadPool())
+    fun pack(n:Int) = make(PackOperator(n))
 
     companion object {
         fun <S> create(block:Stream<S>.()->Unit) = make(BlockStream(block))
@@ -79,9 +80,7 @@ class Context<T, R> (
 }
 
 fun testMap(n:Int) : String {
-    println("start:$n")
     Thread.sleep(1000)
-    println("end:$n")
     return n.toString()
 }
 
@@ -94,10 +93,13 @@ fun main(args: Array<String>) {
         finish() }
             //.on(Executors.newCachedThreadPool())
             //.take(20)
+            //.parallel()
+            .pack(10)
             .parallel()
             //.filter{it%3==0}
-            //.map(::testMap)
-            .log { it.toString() }
+            .log { "start:$it:thread:${Thread.currentThread()}" }
+            .map(::testMap)
+            .log { "end:$it" }
             .forEash { count++ }
             .finish{ println("finish:$count") }
             .start()
