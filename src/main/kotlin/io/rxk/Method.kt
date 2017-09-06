@@ -79,6 +79,7 @@ inline fun method(crossinline block: IUnitMethod.() -> Unit) : IUnitMethod {
     }
 }
 
+
 fun <T, R> IMethod<T, R>.out(o:(R)->Unit):IMethod<T, R> = apply { output = o }
 fun <T, E, R> IMethod<T, R>.chain(method: IMethod<R, E>) : IMethod<T, E> = Chain(this, method)
 fun <T> IEasyMethod<T>.chain(method: IEasyMethod<T>) : IEasyMethod<T> = EasyChain(this, method)

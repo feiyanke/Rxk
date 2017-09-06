@@ -91,54 +91,58 @@ class ErrorOperator<T>(block: (Throwable) -> Unit):EasyOperator<T>() {
 class TakeOperator<T>(val number:Int) : EasyOperator<T>() {
 
     var count = 0
-    var finished = false;
+    var finished = false
     override val finish = method {}
     override val cancel = empty()
     override val report = empty()
     override val next = method<T> {
-        if (finished) {
-            report()
-        } else {
-            if (count < number) {
-                count++
-                output(it)
+        synchronized(this@TakeOperator) {
+            if (finished) {
+                report()
             } else {
-                finished = true
-                cancel()
-                finish.output()
+                if (count < number) {
+                    count++
+                    output(it)
+                } else {
+                    finished = true
+                    cancel()
+                    finish.output()
+                }
             }
         }
+
     }
 
     override val error = method<Throwable> {
-        if (finished) {
-            report()
-        } else {
-            if (count < number) {
-                count++
-                output(it)
+        synchronized(this@TakeOperator) {
+            if (finished) {
+                report()
             } else {
-                finished = true
-                cancel()
-                finish.output()
+                if (count < number) {
+                    count++
+                    output(it)
+                } else {
+                    finished = true
+                    cancel()
+                    finish.output()
+                }
             }
         }
-
     }
 }
 
 class ScheduleOperator<T>(val scheduler : Executor) : EasyOperator<T>() {
 
     override val next = method<T> {
-        scheduler.execute { synchronized(this@ScheduleOperator) {output(it)} }
+        scheduler.execute { output(it) }
     }
 
     override val error = method<Throwable> {
-        scheduler.execute { synchronized(this@ScheduleOperator) {output(it)} }
+        scheduler.execute {output(it)}
     }
 
     override val finish = method {
-        scheduler.execute { synchronized(this@ScheduleOperator) {output()} }
+        scheduler.execute { output() }
     }
 }
 
@@ -155,8 +159,11 @@ class PackOperator<T>(val n:Int):EasyOperator<T>(){
     var count = 0
 
     override val report = method {
-        count--
-        doo()
+        synchronized(this) {
+            count--
+            //println("report:$count")
+            doo()
+        }
     }
 
     override val next = method<T> {

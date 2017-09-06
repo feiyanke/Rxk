@@ -96,7 +96,7 @@ fun main(args: Array<String>) {
             //.parallel()
             .pack(10)
             .parallel()
-            //.filter{it%3==0}
+            .filter{it%3==0}
             .log { "start:$it:thread:${Thread.currentThread()}" }
             .map(::testMap)
             .log { "end:$it" }
