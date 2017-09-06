@@ -1,7 +1,6 @@
 package io.rxk
 
 import java.util.concurrent.Executor
-import java.util.concurrent.LinkedTransferQueue
 
 abstract class Operator<in T, R> {
     abstract val next : IMethod<T, R>
@@ -23,63 +22,6 @@ abstract class EasyOperator<R> {
     open val cancel : IUnitMethod? = null
     open val report : IUnitMethod? = null
 }
-
-abstract class Stream<R> {
-    open val next: IEasyMethod<R> = empty<R>()
-    open val error : IEasyMethod<Throwable> = empty<Throwable>()
-    open val finish : IUnitMethod = empty()
-    open val start : IUnitMethod = empty()
-    open val cancel : IUnitMethod = empty()
-    open val report : IUnitMethod = empty()
-}
-
-
-
-/*abstract class SignalToSourceOperator<R> {
-    open val next: IEasyMethod<R>? = null
-    open val error : IEasyMethod<Throwable>? = null
-    open val finish : IEasyMethod<Unit>? = null
-    abstract val reset : IEasyMethod<Unit>
-}
-
-
-abstract class SourceToStreamOperator<R> {
-    open val next: IEasyMethod<R>? = null
-    open val error : IEasyMethod<Throwable>? = null
-    open val finish : IEasyMethod<Unit>? = null
-    open val reset : IEasyMethod<Unit>? = null
-    abstract val requset : IEasyMethod<Unit>
-}
-
-abstract class SignalToStreamOperator<R> {
-    open val next: IEasyMethod<R>? = null
-    open val error : IEasyMethod<Throwable>? = null
-    open val finish : IEasyMethod<Unit>? = null
-    abstract val reset : IEasyMethod<Unit>
-    abstract val request : IEasyMethod<Int>
-}
-
-class SignalToStream<S> : SignalToStreamOperator<S>() {
-    private object finished
-    private val queue : LinkedTransferQueue<Any> = LinkedTransferQueue()
-    override val next = method<S> { queue.add(it) }
-    override val error = method<Throwable> { queue.add(it) }
-    override val finish = method { queue.add(finished) }
-    override val reset = method { queue.clear();output() }
-    override val request = method<Int> {
-        for (i in 0 until it) {
-            val a = queue.take()
-            if (a is Throwable) {
-                error(a)
-            } else if (a == finished) {
-                finish()
-            } else {
-                next(a as S)
-            }
-        }
-        output(it)
-    }
-}*/
 
 class FilterOperator<T>(predicate: (T) -> Boolean) : EasyOperator<T>() {
     override val error = empty<Throwable>()
@@ -148,20 +90,27 @@ class TakeOperator<T>(val number:Int) : EasyOperator<T>() {
                 count++
                 output(it)
             } else {
+                finished = true
                 cancel()
                 finish()
-                finished = true
             }
         }
     }
 
     override val error = method<Throwable> {
-        if (count < number) {
-            count++
-            output(it)
+        if (finished) {
+            report()
         } else {
-            finish()
+            if (count < number) {
+                count++
+                output(it)
+            } else {
+                finished = true
+                cancel()
+                finish()
+            }
         }
+
     }
 }
 
@@ -178,105 +127,3 @@ class ScheduleOperator<T>(val scheduler : Executor) : EasyOperator<T>() {
         scheduler.execute { output() }
     }
 }
-//
-//class ForEach<T>(stream: Stream<T>, val block: (T) -> Unit) : Operator<T, T>(stream) {
-//
-//    override fun next(v: T) {
-//        try {
-//            block(v)
-//            stream.request()
-//        } catch (e:Throwable) {
-//            doError(e)
-//        }
-//    }
-//}
-//
-//class IgnoreError<T>(stream: Stream<T>, val block: (e:Throwable) -> Unit) : Operator<T, T>(stream) {
-//    override fun next(v: T) {
-//        doNext(v)
-//    }
-//
-//    override fun error(e: Throwable) {
-//        try {
-//            block(e)
-//            stream.request()
-//        } catch (e:Throwable) {
-//            doError(e)
-//        }
-//    }
-//}
-//
-//class Error<T>(stream: Stream<T>, val block: (e:Throwable) -> Unit) : Operator<T, T>(stream) {
-//    override fun next(v: T) {
-//        doNext(v)
-//    }
-//
-//    override fun error(e: Throwable) {
-//        try {
-//            block(e)
-//        } catch (e:Throwable) {
-//            doError(e)
-//        }
-//    }
-//}
-//
-//class RepeatStream<T>(stream: Stream<T>, val n:Int) : Operator<T, T>(stream) {
-//    override fun next(v: T) {
-//        doNext(v)
-//    }
-//
-//    var count = 0
-//    override fun start() {
-//        super.start()
-//        count = 0
-//    }
-//
-//    override fun finish() {
-//        if (count < n) {
-//            request()
-//        } else {
-//            doFinish()
-//        }
-//    }
-//}
-//
-////fun <T> Stream<T>.repeat(n:Int):Stream<T> {
-////    return RepeatStream<T>(this, n)
-////}
-////
-////fun <T> Stream<T>.filter(predicate: (T) -> Boolean) : Stream<T> {
-////    return Filter(this, predicate)
-////}
-////
-////fun <T, R> Stream<T>.map(transform: (T) -> R) : Stream<R> {
-////    return Map(this, transform)
-////}
-////
-////fun <T> Stream<T>.forEach(block:(T)->Unit) : Stream<T> {
-////    return ForEach(this, block)
-////}
-////
-////fun <T> Stream<T>.error(block: (e: Throwable) -> Unit) : Stream<T> {
-////    return Error(this, block)
-////}
-////
-////fun <T> Stream<T>.ignoreError(block: (e: Throwable) -> Unit) : Stream<T> {
-////    return IgnoreError(this, block)
-////}
-////
-////fun <T> Stream<T>.finish(block: () -> Unit = {}) {
-////    receiver = Finish(block)
-////    start()
-////    request()
-////}
-////
-////fun <T> Stream<T>.on(executor: Executor) : Stream<T> {
-////    return Scheduler(this, executor)
-////}
-////
-////fun <T> Stream<T>.take(count:Int) :Stream<T> {
-////    return Take(this, count)
-////}
-////
-////
-////fun <T> Iterable<T>.asStream() = IterableStream(this)
