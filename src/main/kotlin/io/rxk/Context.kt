@@ -13,29 +13,34 @@ class Context<T, R> (
         var report: IUnitMethod
 ) {
 
-    fun filter(predicate:(R)->Boolean) = make(FilterOperator(predicate))
-    fun <E> map(tranform:(R)->E) = make(MapOperator(tranform))
-    fun <E> map(method:IMethod<R, E>) = make(method)
-    fun <E> mapAsync(callback:(R, (E)->Unit)->Unit) = make(MapCallbackOperator(callback))
-    fun forEash(block:(R)->Unit) = make(ForEachOperator(block))
-    fun finish(block: () -> Unit) = make(FinishOperator(block))
-    fun error(block: (e:Throwable) -> Unit) = make(ErrorOperator(block))
-    fun take(n:Int) = make(TakeOperator(n))
-    fun on(executor: Executor) = make(ScheduleOperator(executor))
-    fun log(block: (R) -> String) = make(LogOperator(block))
-    fun parallel() = on(Executors.newCachedThreadPool())
-    fun pack(n:Int) = make(PackOperator(n))
+    fun filter(predicate:(R)->Boolean):Context<T, R> = make(FilterOperator(predicate))
+    fun <E> map(tranform:(R)->E):Context<T, E> = make(MapOperator(tranform))
+    fun <E> map(method:IMethod<R, E>):Context<T, E> = make(method)
+    fun <E> mapCallback(callback:(R, (E)->Unit)->Unit):Context<T, E> = make(MapCallbackOperator(callback))
+    fun <E> mapFuture(method:(R)->Future<E>):Context<T, E> = make(MapFutureOperator(method))
+    fun forEach(block:(R)->Unit):Context<T, R> = make(ForEachOperator(block))
+    fun finish(block: () -> Unit):Context<T, R> = make(FinishOperator(block))
+    fun error(block: (e:Throwable) -> Unit):Context<T, R> = make(ErrorOperator(block))
+    fun take(n:Int):Context<T, R> = make(TakeOperator(n))
+    fun on(executor: Executor):Context<T, R> = make(ScheduleOperator(executor))
+    fun log(block: (R) -> String):Context<T, R> = make(LogOperator(block))
+    fun parallel():Context<T, R> = on(Executors.newCachedThreadPool())
+    fun pack(n:Int):Context<T, R> = make(PackOperator(n))
 
     companion object {
-        fun <S> create(block:Stream<S>.()->Unit) = make(BlockStream(block))
-        fun fromRunable(block:()->Unit) = make(RunableStream(block))
-        fun from(runnable: Runnable) = fromRunable(runnable::run)
-        fun <T> fromCallable(callable:()->T) = make(CallableStream(callable))
-        fun <T> from(callable: Callable<T>) = fromCallable(callable::call)
-        fun <T> from(future: Future<T>) = fromCallable(future::get)
-        fun interval(ms: Long) = make(IntervalStream(ms))
+        fun <T> create(block:Stream<T>.()->Unit):Context<T, T> = make(BlockStream(block))
+        fun fromRunable(block:()->Unit):Context<Unit, Unit> = make(RunableStream(block))
+        fun from(runnable: Runnable):Context<Unit, Unit> = fromRunable(runnable::run)
+        fun <T> fromCallable(callable:()->T):Context<T, T> = make(CallableStream(callable))
+        fun <T> from(callable: Callable<T>):Context<T, T> = fromCallable(callable::call)
+        fun <T> from(future: Future<T>):Context<T, T> = fromCallable(future::get)
+        fun <T> from(iterable: Iterable<T>):Context<T, T> = make(IterableStream(iterable))
+        fun <T> from(array: Array<T>):Context<T, T> = make(IterableStream(array.asIterable()))
+        fun <T> just(vararg values:T):Context<T, T> = from(values.asIterable())
+        fun range(n:Int, m:Int):Context<Int, Int> = from(n until m)
+        fun interval(ms: Long):Context<Int, Int> = make(IntervalStream(ms))
 
-        private fun <T> make(o: Stream<T>) = Context(o.next, o.error, o.finish, o.start, o.cancel, o.report)
+        private fun <T> make(o: Stream<T>):Context<T, T> = Context(o.next, o.error, o.finish, o.start, o.cancel, o.report)
     }
 
     fun <E> make(m: Operator<R, E>) = make(m.next, m.error, m.finish, m.start, m.cancel, m.report)
@@ -84,23 +89,28 @@ fun testMap(n:Int) : String {
     return n.toString()
 }
 
+fun testMapAsync(n:Int, cb:(String)->Unit){
+    thread {
+        Thread.sleep(1000)
+        cb(n.toString())
+    }
+}
+
 fun main(args: Array<String>) {
     var count = 0
-    Context.create<Int> {
-        for (i in 0..100) {
-            next(i)
-        }
-        finish() }
+    Context.range(0,100)
+            .pack(7)
             //.on(Executors.newCachedThreadPool())
-            //.take(20)
+            .take(20)
+            //.pack(7)
             //.parallel()
-            .pack(10)
-            .parallel()
-            .filter{it%3==0}
+            //.pack(10)
+            //.parallel()
+            //.filter{it%3==0}
             .log { "start:$it:thread:${Thread.currentThread()}" }
-            .map(::testMap)
+            .mapCallback(::testMapAsync)
             .log { "end:$it" }
-            .forEash { count++ }
+            .forEach { count++ }
             .finish{ println("finish:$count") }
             .start()
 }

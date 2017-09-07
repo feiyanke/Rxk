@@ -61,5 +61,16 @@ class IntervalStream(ms:Long):Stream<Int>(){
     }
 }
 
+class IterableStream<T>(iterable: Iterable<T>):Stream<T>() {
+    val iter = iterable.iterator()
+    override val start = method {
+        iterable.forEach { next(it) }
+        finish()
+    }
+    override val cancel = method {
+        next.output = {}
+    }
+}
+
 
 

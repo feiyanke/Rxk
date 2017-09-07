@@ -1,6 +1,7 @@
 package io.rxk
 
 import java.util.concurrent.Executor
+import java.util.concurrent.Future
 import java.util.concurrent.LinkedTransferQueue
 
 abstract class Operator<in T, R> {
@@ -52,7 +53,16 @@ class MapCallbackOperator<in R, E>(callback:(R, (E)->Unit)->Unit):Operator<R, E>
     }
 }
 
-
+class MapFutureOperator<in R, E>(method:(R)->Future<E>):Operator<R, E>(){
+    override val error = empty<Throwable>()
+    override val next = method<R, E> {
+        try {
+            output(method(it).get())
+        } catch (e:Throwable) {
+            error(e)
+        }
+    }
+}
 
 class MapOperator<in R, E>(transform: (R) -> E) : Operator<R, E>() {
 
@@ -161,7 +171,7 @@ class PackOperator<T>(val n:Int):EasyOperator<T>(){
     override val report = method {
         synchronized(this) {
             count--
-            //println("report:$count")
+            println("report:$count")
             doo()
         }
     }
