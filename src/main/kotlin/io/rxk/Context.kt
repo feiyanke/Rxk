@@ -4,7 +4,7 @@ import java.util.concurrent.*
 import kotlin.concurrent.thread
 
 class Context<T, R> (
-        var next: IMethod<T, R>,
+        var signal: IMethod<T, R>,
         var error: IEasyMethod<Throwable>,
         var finish: IUnitMethod,
 
@@ -40,11 +40,11 @@ class Context<T, R> (
         fun range(n:Int, m:Int):Context<Int, Int> = from(n until m)
         fun interval(ms: Long):Context<Int, Int> = make(IntervalStream(ms))
 
-        private fun <T> make(o: Stream<T>):Context<T, T> = Context(o.next, o.error, o.finish, o.start, o.cancel, o.report)
+        private fun <T> make(o: Stream<T>):Context<T, T> = o.make()
     }
 
-    fun <E> make(m: Operator<R, E>) = make(m.next, m.error, m.finish, m.start, m.cancel, m.report)
-    fun make(m: EasyOperator<R>) = make(m.next, m.error, m.finish, m.start, m.cancel, m.report)
+    fun <E> make(m: Operator<R, E>) = make(m.signal, m.error, m.finish, m.start, m.cancel, m.report)
+    fun make(m: EasyOperator<R>) = make(m.signal, m.error, m.finish, m.start, m.cancel, m.report)
 
     fun <E> make(next : IMethod<R, E>,
                  error : IEasyMethod<Throwable>? = null,
@@ -75,8 +75,8 @@ class Context<T, R> (
         chainReport(report)
     }
 
-    private fun <E> chainNext(m:IMethod<R, E>) : Context<T, E> = Context(next.chain(m), error, finish, start, cancel, report)
-    private fun chainNext(m:IEasyMethod<R>?) = m?.let { next = next.chain(m) }
+    private fun <E> chainNext(m:IMethod<R, E>) : Context<T, E> = Context(signal.chain(m), error, finish, start, cancel, report)
+    private fun chainNext(m:IEasyMethod<R>?) = m?.let { signal = signal.chain(m) }
     private fun chainError(m:IEasyMethod<Throwable>?) = m?.let { error = error.chain(m) }
     private fun chainFinish(m:IUnitMethod?) = m?.let { finish = finish.chain(m) }
     private fun chainStart(m:IUnitMethod?) = m?.let { start = it.chain(start) }

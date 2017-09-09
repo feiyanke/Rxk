@@ -5,7 +5,7 @@ import java.util.concurrent.Future
 import java.util.concurrent.LinkedTransferQueue
 
 abstract class Operator<in T, R> {
-    abstract val next : IMethod<T, R>
+    abstract val signal: IMethod<T, R>
     open val error : IEasyMethod<Throwable>? = null
     open val finish : IUnitMethod? = null
 
@@ -16,7 +16,7 @@ abstract class Operator<in T, R> {
 
 abstract class EasyOperator<R> {
 
-    open val next: IEasyMethod<R>? = null
+    open val signal: IEasyMethod<R>? = null
     open val error : IEasyMethod<Throwable>? = null
     open val finish : IUnitMethod? = null
 
@@ -28,7 +28,7 @@ abstract class EasyOperator<R> {
 class FilterOperator<T>(predicate: (T) -> Boolean) : EasyOperator<T>() {
     override val error = empty<Throwable>()
     override val report = empty()
-    override val next = object : EasyMethod<T>() {
+    override val signal = object : EasyMethod<T>() {
         override fun invoke(p1: T) {
             try {
                 if (predicate(p1)) output(p1)
@@ -42,7 +42,7 @@ class FilterOperator<T>(predicate: (T) -> Boolean) : EasyOperator<T>() {
 
 class MapCallbackOperator<in R, E>(callback:(R, (E)->Unit)->Unit):Operator<R, E>(){
     override val error = empty<Throwable>()
-    override val next = method<R, E> {
+    override val signal = method<R, E> {
         try {
             callback(it) {
                 output(it)
@@ -55,7 +55,7 @@ class MapCallbackOperator<in R, E>(callback:(R, (E)->Unit)->Unit):Operator<R, E>
 
 class MapFutureOperator<in R, E>(method:(R)->Future<E>):Operator<R, E>(){
     override val error = empty<Throwable>()
-    override val next = method<R, E> {
+    override val signal = method<R, E> {
         try {
             output(method(it).get())
         } catch (e:Throwable) {
@@ -68,7 +68,7 @@ class MapOperator<in R, E>(transform: (R) -> E) : Operator<R, E>() {
 
     override val error = empty<Throwable>()
 
-    override val next = method<R, E> {
+    override val signal = method<R, E> {
             try {
                 output(transform(it))
             } catch (e : Throwable) {
@@ -80,7 +80,7 @@ class MapOperator<in R, E>(transform: (R) -> E) : Operator<R, E>() {
 class ForEachOperator<T>(block:(T)->Unit):EasyOperator<T>() {
     override val error = empty<Throwable>()
     override val report = empty()
-    override val next = method<T> {
+    override val signal = method<T> {
         try {
             block(it)
             report()
@@ -101,11 +101,10 @@ class ErrorOperator<T>(block: (Throwable) -> Unit):EasyOperator<T>() {
 class TakeOperator<T>(val number:Int) : EasyOperator<T>() {
 
     var count = 0
+    var report_count = 0
     var finished = false
-    override val finish = method {}
-    override val cancel = empty()
-    override val report = empty()
-    override val next = method<T> {
+
+    override val signal = method<T> {
         synchronized(this@TakeOperator) {
             if (finished) {
                 report()
@@ -116,11 +115,9 @@ class TakeOperator<T>(val number:Int) : EasyOperator<T>() {
                 } else {
                     finished = true
                     cancel()
-                    finish.output()
                 }
             }
         }
-
     }
 
     override val error = method<Throwable> {
@@ -134,16 +131,30 @@ class TakeOperator<T>(val number:Int) : EasyOperator<T>() {
                 } else {
                     finished = true
                     cancel()
-                    finish.output()
                 }
             }
         }
     }
+
+    override val finish = method {
+        finished = true
+    }
+
+    override val cancel = empty()
+
+    override val report = method {
+        output()
+        report_count++
+        if (finished&&report_count==number) {
+            finish.output()
+        }
+    }
+
 }
 
 class ScheduleOperator<T>(val scheduler : Executor) : EasyOperator<T>() {
 
-    override val next = method<T> {
+    override val signal = method<T> {
         scheduler.execute { output(it) }
     }
 
@@ -157,7 +168,7 @@ class ScheduleOperator<T>(val scheduler : Executor) : EasyOperator<T>() {
 }
 
 class LogOperator<T>(log:(T)->String) : EasyOperator<T>() {
-    override val next = method<T> {
+    override val signal = method<T> {
         println(log(it))
         output(it)
     }
@@ -176,13 +187,20 @@ class PackOperator<T>(val n:Int):EasyOperator<T>(){
         }
     }
 
-    override val next = method<T> {
+    override val signal = method<T> {
         queue.add(it)
         report.output()
         doo()
     }
 
-    override val finish = method { finished = true;doo() }
+    override val finish = method {
+        finished = true
+        doo()
+    }
+
+    override val cancel = method {
+        signal.output = {}
+    }
 
     @Synchronized fun doo() {
 
@@ -190,14 +208,14 @@ class PackOperator<T>(val n:Int):EasyOperator<T>(){
             if (queue.size>=n) {
                 count = n
                 for (i in 0 until n) {
-                    next.output(queue.take())
+                    signal.output(queue.take())
                 }
 
             } else if (finished) {
                 if (queue.isNotEmpty()) {
                     count = queue.size
                     for (i in 0 until queue.size) {
-                        next.output(queue.take())
+                        signal.output(queue.take())
                     }
                 } else {
                     finish.output()
@@ -224,7 +242,7 @@ class PackOperator<T>(val n:Int):EasyOperator<T>(){
         doStart()
     }
 
-    override fun next(v: T) {
+    override fun signal(v: T) {
         queue.add(v)
     }
 
