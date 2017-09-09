@@ -2,6 +2,7 @@ package io.rxk
 
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 abstract class Stream<R> {
     open protected val signal: IEasyMethod<R> = empty<R>()
@@ -15,21 +16,19 @@ abstract class Stream<R> {
 
 abstract class BaseStream<R>:Stream<R>(){
 
-    private var count = 0
-    private var end = false
+    private var count = AtomicInteger(0)
 
     override val signal = method<R> {
-        count++
+        count.incrementAndGet()
         output(it)
     }
 
-    override val error = method<Throwable> {
-        count++
-        output(it)
-    }
+    override val error = empty<Throwable>()
 
     override val finish = method {
-        end = true
+        if (count.decrementAndGet()==-1) {
+            output()
+        }
     }
 
     override val cancel = method {
@@ -39,8 +38,7 @@ abstract class BaseStream<R>:Stream<R>(){
     }
 
     override val report = method {
-        count--
-        if (end&&count==0) {
+        if (count.decrementAndGet()==-1) {
             finish.output()
         }
     }

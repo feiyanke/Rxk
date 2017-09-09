@@ -3,6 +3,8 @@ package io.rxk
 import java.util.concurrent.Executor
 import java.util.concurrent.Future
 import java.util.concurrent.LinkedTransferQueue
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 abstract class Operator<in T, R> {
     abstract val signal: IMethod<T, R>
@@ -34,6 +36,7 @@ class FilterOperator<T>(predicate: (T) -> Boolean) : EasyOperator<T>() {
                 if (predicate(p1)) output(p1)
                 else report()
             } catch (e : Throwable) {
+                report()
                 error(e)
             }
         }
@@ -42,12 +45,14 @@ class FilterOperator<T>(predicate: (T) -> Boolean) : EasyOperator<T>() {
 
 class MapCallbackOperator<in R, E>(callback:(R, (E)->Unit)->Unit):Operator<R, E>(){
     override val error = empty<Throwable>()
+    override val report = empty()
     override val signal = method<R, E> {
         try {
             callback(it) {
                 output(it)
             }
         } catch (e:Throwable) {
+            report()
             error(e)
         }
     }
@@ -55,10 +60,12 @@ class MapCallbackOperator<in R, E>(callback:(R, (E)->Unit)->Unit):Operator<R, E>
 
 class MapFutureOperator<in R, E>(method:(R)->Future<E>):Operator<R, E>(){
     override val error = empty<Throwable>()
+    override val report = empty()
     override val signal = method<R, E> {
         try {
             output(method(it).get())
         } catch (e:Throwable) {
+            report()
             error(e)
         }
     }
@@ -67,11 +74,12 @@ class MapFutureOperator<in R, E>(method:(R)->Future<E>):Operator<R, E>(){
 class MapOperator<in R, E>(transform: (R) -> E) : Operator<R, E>() {
 
     override val error = empty<Throwable>()
-
+    override val report = empty()
     override val signal = method<R, E> {
             try {
                 output(transform(it))
             } catch (e : Throwable) {
+                report()
                 error(e)
             }
         }
@@ -98,54 +106,32 @@ class ErrorOperator<T>(block: (Throwable) -> Unit):EasyOperator<T>() {
     override val error = method<Throwable>{block(it)}
 }
 
-class TakeOperator<T>(val number:Int) : EasyOperator<T>() {
+class TakeOperator<T>(private val number:Int) : EasyOperator<T>() {
 
-    var count = 0
-    var report_count = 0
-    var finished = false
+    var count = AtomicInteger(0)
+    var report_count = AtomicInteger(0)
+    //var finished = true
 
     override val signal = method<T> {
-        synchronized(this@TakeOperator) {
-            if (finished) {
-                report()
-            } else {
-                if (count < number) {
-                    count++
-                    output(it)
-                } else {
-                    finished = true
-                    cancel()
-                }
+
+        val c = count.incrementAndGet()
+        when {
+            c < number -> output(it)
+            c == number -> {
+                output(it)
+                cancel()
             }
+            else -> report()
         }
     }
 
-    override val error = method<Throwable> {
-        synchronized(this@TakeOperator) {
-            if (finished) {
-                report()
-            } else {
-                if (count < number) {
-                    count++
-                    output(it)
-                } else {
-                    finished = true
-                    cancel()
-                }
-            }
-        }
-    }
-
-    override val finish = method {
-        finished = true
-    }
+    override val finish = empty()
 
     override val cancel = empty()
 
     override val report = method {
         output()
-        report_count++
-        if (finished&&report_count==number) {
+        if (report_count.incrementAndGet()>=number) {
             finish.output()
         }
     }
@@ -174,8 +160,10 @@ class LogOperator<T>(log:(T)->String) : EasyOperator<T>() {
     }
 }
 
-class PackOperator<T>(val n:Int):EasyOperator<T>(){
+class PackOperator<T>(private val n:Int):EasyOperator<T>(){
+
     val queue : LinkedTransferQueue<T> = LinkedTransferQueue()
+
     var finished = false
     var count = 0
 

@@ -1,6 +1,7 @@
 package io.rxk
 
 import java.util.concurrent.*
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
 
 class Context<T, R> (
@@ -98,7 +99,8 @@ fun testMapAsync(n:Int, cb:(String)->Unit){
 
 fun main(args: Array<String>) {
     var count = 0
-    Context.range(0,100)
+
+    Context.range(0,3)
             .pack(7)
             //.on(Executors.newCachedThreadPool())
             .take(20)
