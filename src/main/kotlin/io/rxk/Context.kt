@@ -100,15 +100,17 @@ fun testMapAsync(n:Int, cb:(String)->Unit){
 fun main(args: Array<String>) {
     var count = 0
 
-    Context.range(0,3)
-            .pack(7)
+    Context.range(0,30)
+            .pack(30)
             //.on(Executors.newCachedThreadPool())
-            .take(20)
+            .take(30)
+            //.parallel()
+            //.pack(5)
             //.pack(7)
             //.parallel()
             //.pack(10)
             //.parallel()
-            //.filter{it%3==0}
+            //.filter{it<15}
             .log { "start:$it:thread:${Thread.currentThread()}" }
             .mapCallback(::testMapAsync)
             .log { "end:$it" }

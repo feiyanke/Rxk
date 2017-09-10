@@ -1,9 +1,10 @@
 package io.rxk
 
+import java.util.*
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.Executor
 import java.util.concurrent.Future
 import java.util.concurrent.LinkedTransferQueue
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 abstract class Operator<in T, R> {
@@ -162,27 +163,32 @@ class LogOperator<T>(log:(T)->String) : EasyOperator<T>() {
 
 class PackOperator<T>(private val n:Int):EasyOperator<T>(){
 
-    val queue : LinkedTransferQueue<T> = LinkedTransferQueue()
+    var queue : LinkedList<T> = LinkedList()
+    val pack : ConcurrentLinkedQueue<LinkedList<T>> = ConcurrentLinkedQueue()
 
-    var finished = false
-    var count = 0
+    var report_count = AtomicInteger(0)
 
     override val report = method {
-        synchronized(this) {
-            count--
-            println("report:$count")
-            doo()
-        }
+        report_count.decrementAndGet()
+        doo()
     }
 
     override val signal = method<T> {
-        queue.add(it)
         report.output()
+        synchronized(queue) {
+            queue.add(it)
+            if (queue.size==n) {
+                pack.add(queue)
+                queue = LinkedList()
+            }
+        }
         doo()
     }
 
     override val finish = method {
-        finished = true
+        synchronized(queue) {
+            pack.add(queue)
+        }
         doo()
     }
 
@@ -190,72 +196,13 @@ class PackOperator<T>(private val n:Int):EasyOperator<T>(){
         signal.output = {}
     }
 
-    @Synchronized fun doo() {
-
-        if (count<=0) {
-            if (queue.size>=n) {
-                count = n
-                for (i in 0 until n) {
-                    signal.output(queue.take())
-                }
-
-            } else if (finished) {
-                if (queue.isNotEmpty()) {
-                    count = queue.size
-                    for (i in 0 until queue.size) {
-                        signal.output(queue.take())
-                    }
-                } else {
-                    finish.output()
-                }
+    @Synchronized private fun doo() {
+        if (report_count.get()==0&&pack.isNotEmpty()) {
+            val values = pack.poll()
+            report_count.set(values.size)
+            values.forEach {
+                signal.output(it)
             }
         }
     }
 }
-
-/*class SourceToStream<T>(val source: Source<T>) : BaseStream<T>(), Receiver<T> {
-
-    val queue : LinkedTransferQueue<Any> = LinkedTransferQueue()
-    object finished
-    init {
-        source.receiver = this
-    }
-
-    fun doStart() {
-        source.start()
-    }
-
-    override fun start() {
-        queue.clear()
-        doStart()
-    }
-
-    override fun signal(v: T) {
-        queue.add(v)
-    }
-
-    override fun error(e: Throwable) {
-        queue.add(e)
-    }
-
-    override fun finish() {
-        queue.add(finished)
-    }
-
-    override fun request(n: Int) {
-        for (i in 0 until n) {
-            requestOne()
-        }
-    }
-
-    private fun requestOne() {
-        val a = queue.take()
-        if (a is Throwable) {
-            doError(a)
-        } else if (a == finished) {
-            doFinish()
-        } else {
-            doNext(a as T)
-        }
-    }
-}*/

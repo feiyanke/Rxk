@@ -81,12 +81,10 @@ class CallableStream<R>(callable:()->R) : BaseStream<R>() {
 }
 
 class IntervalStream(ms:Long):BaseStream<Int>(){
-    var count = 0
+    var count = AtomicInteger(0)
     override val start = method {
-        count = 0
         Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate({
-            signal(count)
-            count++
+            signal(count.getAndIncrement())
         },0, ms, TimeUnit.MILLISECONDS)
     }
 }
