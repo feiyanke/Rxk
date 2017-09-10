@@ -1,10 +1,7 @@
 package io.rxk
 
 import java.util.*
-import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.Executor
-import java.util.concurrent.Future
-import java.util.concurrent.LinkedTransferQueue
+import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicInteger
 
 abstract class Operator<in T, R> {
@@ -199,10 +196,50 @@ class PackOperator<T>(private val n:Int):EasyOperator<T>(){
     @Synchronized private fun doo() {
         if (report_count.get()==0&&pack.isNotEmpty()) {
             val values = pack.poll()
-            report_count.set(values.size)
+            when {
+                values.size == 0 -> finish.output()
+                values.size<n -> report_count.set(values.size-1)
+                else -> report_count.set(n)
+            }
             values.forEach {
                 signal.output(it)
             }
+        } else if (report_count.get() == -1) {
+            finish.output()
         }
     }
 }
+
+class ScanOperator<T>(private var value:T, method:(T, T)->T):EasyOperator<T>(){
+    override val signal = method<T> {
+        synchronized(this) {
+            value = method(value, it)
+        }
+        output(value)
+    }
+}
+
+class MultiScanOperator<T>(vararg values:T, method: (List<T>, T) -> T):EasyOperator<T>(){
+    private val list = values.toMutableList()
+    override val signal = method<T> {
+        synchronized(this) {
+            list.add(method(list, it))
+            list.removeAt(0)
+        }
+        output(list.last())
+    }
+}
+
+class DistinctOperator<T> : EasyOperator<T>(){
+    private val set = ConcurrentSkipListSet<T>()
+    override val signal = method<T> {
+        if (set.contains(it)) {
+            report()
+        } else {
+            set.add(it)
+            output(it)
+        }
+    }
+    override val report = empty()
+}
+

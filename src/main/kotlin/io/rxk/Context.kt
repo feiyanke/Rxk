@@ -15,10 +15,13 @@ class Context<T, R> (
 ) {
 
     fun filter(predicate:(R)->Boolean):Context<T, R> = make(FilterOperator(predicate))
+    fun distinct():Context<T, R> = make(DistinctOperator())
     fun <E> map(tranform:(R)->E):Context<T, E> = make(MapOperator(tranform))
     fun <E> map(method:IMethod<R, E>):Context<T, E> = make(method)
     fun <E> mapCallback(callback:(R, (E)->Unit)->Unit):Context<T, E> = make(MapCallbackOperator(callback))
     fun <E> mapFuture(method:(R)->Future<E>):Context<T, E> = make(MapFutureOperator(method))
+    fun scan(init:R, method:(R,R)->R):Context<T, R> = make(ScanOperator(init, method))
+    fun multiScan(vararg init:R, m:(List<R>,R)->R):Context<T, R> = make(MultiScanOperator(*init, method = m))
     fun forEach(block:(R)->Unit):Context<T, R> = make(ForEachOperator(block))
     fun finish(block: () -> Unit):Context<T, R> = make(FinishOperator(block))
     fun error(block: (e:Throwable) -> Unit):Context<T, R> = make(ErrorOperator(block))
@@ -98,12 +101,13 @@ fun testMapAsync(n:Int, cb:(String)->Unit){
 }
 
 fun main(args: Array<String>) {
-    var count = 0
+    var count = AtomicInteger(0)
 
-    Context.range(0,30)
-            .pack(30)
+    Context.just(0,1,1,2,1,3,4,0,3)
+            //.pack(2)
             //.on(Executors.newCachedThreadPool())
-            .take(30)
+            //.take(30)
+            //.multiScan(0,0){a,b->a.sum()+b}
             //.parallel()
             //.pack(5)
             //.pack(7)
@@ -111,10 +115,12 @@ fun main(args: Array<String>) {
             //.pack(10)
             //.parallel()
             //.filter{it<15}
+            .distinct()
+            .pack(2)
             .log { "start:$it:thread:${Thread.currentThread()}" }
             .mapCallback(::testMapAsync)
             .log { "end:$it" }
-            .forEach { count++ }
+            .forEach { count.incrementAndGet() }
             .finish{ println("finish:$count") }
             .start()
 }
