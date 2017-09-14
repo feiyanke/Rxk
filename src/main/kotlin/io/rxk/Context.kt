@@ -30,6 +30,7 @@ class Context<T, R> (
     fun log(block: (R) -> String):Context<T, R> = make(LogOperator(block))
     fun parallel():Context<T, R> = on(Executors.newCachedThreadPool())
     fun pack(n:Int):Context<T, R> = make(PackOperator(n))
+    fun buffer(count:Int) = make(BufferOperator(count))
 
     companion object {
         fun <T> create(block:Stream<T>.()->Unit):Context<T, T> = make(BlockStream(block))
@@ -93,7 +94,7 @@ fun testMap(n:Int) : String {
     return n.toString()
 }
 
-fun testMapAsync(n:Int, cb:(String)->Unit){
+fun testMapAsync(n:Any, cb:(String)->Unit){
     thread {
         Thread.sleep(1000)
         cb(n.toString())
@@ -104,6 +105,7 @@ fun main(args: Array<String>) {
     var count = AtomicInteger(0)
 
     Context.just(0,1,1,2,1,3,4,0,3)
+            .buffer(4)
             //.pack(2)
             //.on(Executors.newCachedThreadPool())
             //.take(30)

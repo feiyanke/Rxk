@@ -231,14 +231,36 @@ class MultiScanOperator<T>(vararg values:T, method: (List<T>, T) -> T):EasyOpera
 }
 
 class DistinctOperator<T> : EasyOperator<T>(){
-    private val set = ConcurrentSkipListSet<T>()
+    private val set = mutableSetOf<T>()
     override val signal = method<T> {
-        if (set.contains(it)) {
-            report()
-        } else {
-            set.add(it)
-            output(it)
+        val r = synchronized(set) {
+            if (set.contains(it)) {
+                report()
+                false
+            } else {
+                set.add(it)
+                true
+            }
         }
+        if (r) output(it)
+    }
+    override val report = empty()
+}
+
+class BufferOperator<T>(count:Int) : Operator<T, List<T>>() {
+    private var list = mutableListOf<T>()
+    override val signal = method<T, List<T>> {
+        var out :List<T>? = null
+        synchronized(list) {
+            list.add(it)
+            if (list.size == count) {
+                out = list
+                list = mutableListOf()
+            } else {
+                report()
+            }
+        }
+        out?.let { output(it) }
     }
     override val report = empty()
 }
