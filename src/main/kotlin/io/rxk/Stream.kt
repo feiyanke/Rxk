@@ -98,12 +98,11 @@ class IterableStream<T>(iterable: Iterable<T>):BaseStream<T>() {
     }
 }
 
-
-class MergeStream<T>(list:List<Context<*, T>>):BaseStream<T>() {
+class MergeStream<T>(sync:Boolean, list:List<Context<*, T>>):BaseStream<T>() {
     private val count = AtomicInteger(list.size)
     override val start = method {
         list.forEach {
-            thread {
+            if (sync) {
                 it.forEach {
                     signal(it)
                 }.finish {
@@ -111,7 +110,18 @@ class MergeStream<T>(list:List<Context<*, T>>):BaseStream<T>() {
                         finish()
                     }
                 }.start()
+            } else {
+                thread {
+                    it.forEach {
+                        signal(it)
+                    }.finish {
+                        if (count.decrementAndGet()==0){
+                            finish()
+                        }
+                    }.start()
+                }
             }
+
         }
     }
 }

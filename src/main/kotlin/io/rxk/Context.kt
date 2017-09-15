@@ -38,6 +38,8 @@ class Context<T, R> (
     fun last():Context<T, R> = make(LastOperator())
     fun skip(count: Int):Context<T, R> = make(SkipOperator(count))
     fun skipLast(count: Int):Context<T, R> = make(SkipLastOperator(count))
+    fun startWith(context: Context<*, R>):Context<*, R> = merge(context, this)
+    fun merge(vararg context: Context<*, R>, sync: Boolean = true):Context<*, R> = merge(this, *context, sync = sync)
 
     companion object {
         fun <T> create(block:Stream<T>.()->Unit):Context<T, T> = make(BlockStream(block))
@@ -51,7 +53,7 @@ class Context<T, R> (
         fun <T> just(vararg values:T):Context<T, T> = from(values.asIterable())
         fun range(n:Int, m:Int):Context<Int, Int> = from(n until m)
         fun interval(ms: Long):Context<Int, Int> = make(IntervalStream(ms))
-        fun <T> merge(vararg context: Context<*, T>):Context<T, T> = make(MergeStream(context.asList()))
+        fun <T> merge(vararg context: Context<*, T>, sync:Boolean = true):Context<*, T> = make(MergeStream(sync, context.asList()))
 
         private fun <T> make(o: Stream<T>):Context<T, T> = o.make()
     }
