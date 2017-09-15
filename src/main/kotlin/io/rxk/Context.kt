@@ -22,7 +22,7 @@ class Context<T, R> (
     fun <E> mapFuture(method:(R)->Future<E>):Context<T, E> = make(MapFutureOperator(method))
     fun scan(init:R, method:(R,R)->R):Context<T, R> = make(ScanOperator(init, method))
     fun multiScan(vararg init:R, m:(List<R>,R)->R):Context<T, R> = make(MultiScanOperator(*init, method = m))
-    fun forEach(block:(R)->Unit):Context<T, R> = make(ForEachOperator(block))
+    fun forEach(report:Boolean = true, block:(R)->Unit):Context<T, R> = make(ForEachOperator(report, block))
     fun finish(block: () -> Unit):Context<T, R> = make(FinishOperator(block))
     fun error(block: (e:Throwable) -> Unit):Context<T, R> = make(ErrorOperator(block))
     fun take(n:Int):Context<T, R> = make(TakeOperator(n))
@@ -31,6 +31,7 @@ class Context<T, R> (
     fun parallel():Context<T, R> = on(Executors.newCachedThreadPool())
     fun pack(n:Int):Context<T, R> = make(PackOperator(n))
     fun buffer(count:Int) = make(BufferOperator(count))
+    fun <E> flatMap(transform:(R)->Context<*, E>):Context<T, E> = make(FlatMapOperator(transform))
 
     companion object {
         fun <T> create(block:Stream<T>.()->Unit):Context<T, T> = make(BlockStream(block))
@@ -105,7 +106,11 @@ fun main(args: Array<String>) {
     var count = AtomicInteger(0)
 
     Context.just(0,1,1,2,1,3,4,0,3)
-            .buffer(4)
+            .parallel()
+            .flatMap { (0..it).asStream() }
+            .pack(4)
+            //.pack(1)
+            //.buffer(4)
             //.pack(2)
             //.on(Executors.newCachedThreadPool())
             //.take(30)
@@ -117,12 +122,12 @@ fun main(args: Array<String>) {
             //.pack(10)
             //.parallel()
             //.filter{it<15}
-            .distinct()
-            .pack(2)
+            //.distinct()
+            //.pack(2)
             .log { "start:$it:thread:${Thread.currentThread()}" }
             .mapCallback(::testMapAsync)
             .log { "end:$it" }
-            .forEach { count.incrementAndGet() }
+            .forEach { println("count:${count.incrementAndGet()}") }
             .finish{ println("finish:$count") }
             .start()
 }

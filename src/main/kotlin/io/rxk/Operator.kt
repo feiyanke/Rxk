@@ -83,13 +83,13 @@ class MapOperator<in R, E>(transform: (R) -> E) : Operator<R, E>() {
         }
 }
 
-class ForEachOperator<T>(block:(T)->Unit):EasyOperator<T>() {
+class ForEachOperator<T>(report:Boolean, block:(T)->Unit):EasyOperator<T>() {
     override val error = empty<Throwable>()
     override val report = empty()
     override val signal = method<T> {
         try {
             block(it)
-            report()
+            if (report) report()
         } catch (e:Throwable) {
             error(e)
         }
@@ -160,51 +160,55 @@ class LogOperator<T>(log:(T)->String) : EasyOperator<T>() {
 
 class PackOperator<T>(private val n:Int):EasyOperator<T>(){
 
-    var queue : LinkedList<T> = LinkedList()
-    val pack : ConcurrentLinkedQueue<LinkedList<T>> = ConcurrentLinkedQueue()
+    var queue : MutableList<T> = mutableListOf()
+    val pack : MutableList<List<T>> = mutableListOf()
 
-    var report_count = AtomicInteger(0)
+    var report_count = 0
 
     override val report = method {
-        report_count.decrementAndGet()
-        doo()
+        synchronized(this) {
+            report_count--
+            doo()
+        }
+
     }
 
     override val signal = method<T> {
-        report.output()
-        synchronized(queue) {
+        synchronized(this) {
             queue.add(it)
             if (queue.size==n) {
                 pack.add(queue)
                 queue = LinkedList()
             }
+            doo()
         }
-        doo()
+        report.output()
     }
 
     override val finish = method {
-        synchronized(queue) {
+        synchronized(this) {
             pack.add(queue)
+            doo()
         }
-        doo()
     }
 
     override val cancel = method {
         signal.output = {}
     }
 
-    @Synchronized private fun doo() {
-        if (report_count.get()==0&&pack.isNotEmpty()) {
-            val values = pack.poll()
+    private fun doo() {
+        if (report_count==0&&pack.isNotEmpty()) {
+            val values = pack[0]
+            pack.removeAt(0)
             when {
-                values.size == 0 -> finish.output()
-                values.size<n -> report_count.set(values.size-1)
-                else -> report_count.set(n)
+                values.isEmpty() -> finish.output()
+                values.size<n -> report_count = values.size-1
+                else -> report_count = n
             }
             values.forEach {
                 signal.output(it)
             }
-        } else if (report_count.get() == -1) {
+        } else if (report_count == -1) {
             finish.output()
         }
     }
@@ -263,5 +267,30 @@ class BufferOperator<T>(count:Int) : Operator<T, List<T>>() {
         out?.let { output(it) }
     }
     override val report = empty()
+}
+
+class FlatMapOperator<in T, R>(transform:(T)->Context<*, R>):Operator<T, R>() {
+    private var count = AtomicInteger(0)
+    override val signal = method<T, R> {
+        transform(it).forEach {
+            count.incrementAndGet()
+            output(it)
+        }.error {
+            error(it)
+        }.finish {
+            report.output()
+        }.start()
+    }
+    override val error = empty<Throwable>()
+    override val report = method {
+        if (count.decrementAndGet()==-1) {
+            finish.output()
+        }
+    }
+    override val finish = method {
+        if (count.decrementAndGet()==-1) {
+            output()
+        }
+    }
 }
 
