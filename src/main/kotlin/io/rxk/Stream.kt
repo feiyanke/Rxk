@@ -121,7 +121,30 @@ class MergeStream<T>(sync:Boolean, list:List<Context<*, T>>):BaseStream<T>() {
                     }.start()
                 }
             }
-
         }
+    }
+}
+
+class ZipStream<T>(list: List<Context<*, T>>):BaseStream<List<T>>() {
+
+    private val buffer : List<MutableList<T>> = list.map { mutableListOf<T>() }
+    private val count = AtomicInteger(list.size)
+    override val start = method {
+        for (i in 0 until list.size) {
+            list[i].forEach {
+                buffer[i].add(it)
+                check()?.let { signal(it) }
+            }.finish {
+                if (count.decrementAndGet()==0){
+                    finish()
+                }
+            }.start()
+        }
+    }
+
+    @Synchronized private fun check() : List<T>? {
+        return if(buffer.all { it.isNotEmpty() }) {
+            buffer.map { it.removeAt(0) }
+        } else null
     }
 }
