@@ -105,7 +105,7 @@ class ErrorOperator<T>(block: (Throwable) -> Unit):EasyOperator<T>() {
     override val error = method<Throwable>{block(it)}
 }
 
-class TakeOperator<T>(private val number:Int) : EasyOperator<T>() {
+class TakeOperator<T>(number:Int) : EasyOperator<T>() {
 
     var count = AtomicInteger(0)
     var report_count = AtomicInteger(0)
@@ -329,3 +329,18 @@ class LastOperator<T> : EasyOperator<T>() {
     }
 }
 
+class SkipOperator<T>(number:Int) : EasyOperator<T>() {
+
+    var count = AtomicInteger(0)
+
+    override val signal = method<T> {
+
+        val c = count.incrementAndGet()
+        when {
+            c <= number -> report()
+            else -> output(it)
+        }
+    }
+
+    override val report = empty()
+}

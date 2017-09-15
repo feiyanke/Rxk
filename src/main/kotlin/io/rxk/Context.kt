@@ -35,6 +35,7 @@ class Context<T, R> (
     fun elementAt(index:Int):Context<T, R> = make(ElementAtOperator(index))
     fun first():Context<T, R> = elementAt(0)
     fun last():Context<T, R> = make(LastOperator())
+    fun skip(count: Int):Context<T, R> = make(SkipOperator(count))
 
     companion object {
         fun <T> create(block:Stream<T>.()->Unit):Context<T, T> = make(BlockStream(block))
@@ -109,9 +110,10 @@ fun main(args: Array<String>) {
     var count = AtomicInteger(0)
 
     Context.just(0,1,1,2,1,3,4,0,3)
-            .parallel()
-            .flatMap { (0..it).asStream() }
             .pack(1)
+//            .parallel()
+//            .flatMap { (0..it).asStream() }
+//            .pack(1)
             //.pack(1)
             //.buffer(4)
             //.pack(2)
@@ -127,7 +129,7 @@ fun main(args: Array<String>) {
             //.filter{it<15}
             //.distinct()
             //.pack(2)
-            .last()
+            .skip(3)
             .log { "start:$it:thread:${Thread.currentThread()}" }
             .mapCallback(::testMapAsync)
             .log { "end:$it" }
