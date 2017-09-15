@@ -3,6 +3,7 @@ package io.rxk
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.concurrent.thread
 
 abstract class Stream<R> {
     open protected val signal: IEasyMethod<R> = empty<R>()
@@ -97,3 +98,20 @@ class IterableStream<T>(iterable: Iterable<T>):BaseStream<T>() {
     }
 }
 
+
+class MergeStream<T>(list:List<Context<*, T>>):BaseStream<T>() {
+    private val count = AtomicInteger(list.size)
+    override val start = method {
+        list.forEach {
+            thread {
+                it.forEach {
+                    signal(it)
+                }.finish {
+                    if (count.decrementAndGet()==0){
+                        finish()
+                    }
+                }.start()
+            }
+        }
+    }
+}

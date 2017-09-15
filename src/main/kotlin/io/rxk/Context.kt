@@ -51,6 +51,7 @@ class Context<T, R> (
         fun <T> just(vararg values:T):Context<T, T> = from(values.asIterable())
         fun range(n:Int, m:Int):Context<Int, Int> = from(n until m)
         fun interval(ms: Long):Context<Int, Int> = make(IntervalStream(ms))
+        fun <T> merge(vararg context: Context<*, T>):Context<T, T> = make(MergeStream(context.asList()))
 
         private fun <T> make(o: Stream<T>):Context<T, T> = o.make()
     }
@@ -111,10 +112,11 @@ fun testMapAsync(n:Any, cb:(String)->Unit){
 fun main(args: Array<String>) {
     var count = AtomicInteger(0)
 
-    Context.just(0,1,1,2,1,3,4,0,3)
-            .pack(1)
+//    Context.just(0,1,1,2,1,3,4,0,3)
+    Context.merge((0..10).asStream(), (20..30).asStream())
+//            .pack(1)
 //            .parallel()
-            .flatMap { (0..it).asStream() }
+//            .flatMap { (0..it).asStream() }
 //            .pack(1)
             //.pack(1)
             //.buffer(4)
@@ -131,7 +133,7 @@ fun main(args: Array<String>) {
             //.filter{it<15}
             //.distinct()
             //.pack(2)
-            .takeLast(2)
+//            .takeLast(2)
             .log { "start:$it:thread:${Thread.currentThread()}" }
             .mapCallback(::testMapAsync)
             .log { "end:$it" }
