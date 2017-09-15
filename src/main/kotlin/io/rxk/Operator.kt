@@ -3,6 +3,7 @@ package io.rxk
 import java.util.*
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 abstract class Operator<in T, R> {
     abstract val signal: IMethod<T, R>
@@ -291,6 +292,40 @@ class FlatMapOperator<in T, R>(transform:(T)->Context<*, R>):Operator<T, R>() {
         if (count.decrementAndGet()==-1) {
             output()
         }
+    }
+}
+
+class ElementAtOperator<T>(index:Int) : EasyOperator<T>() {
+    private var count = 0
+    override val signal = method<T> {
+        synchronized(this) {
+            if (count == index) {
+                output(it)
+                cancel()
+            } else {
+                count++
+                report.output()
+            }
+        }
+    }
+    override val cancel = empty()
+    override val report = method {
+        finish.output()
+    }
+    override val finish = method {  }
+}
+
+class LastOperator<T> : EasyOperator<T>() {
+    private val last : AtomicReference<T> = AtomicReference()
+    override val signal:IEasyMethod<T> = method<T> {
+        last.set(it)
+        report.output()
+    }
+    override val report = method {
+        finish.output()
+    }
+    override val finish = method {
+        signal.output(last.get())
     }
 }
 

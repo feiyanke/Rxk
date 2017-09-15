@@ -32,6 +32,9 @@ class Context<T, R> (
     fun pack(n:Int):Context<T, R> = make(PackOperator(n))
     fun buffer(count:Int) = make(BufferOperator(count))
     fun <E> flatMap(transform:(R)->Context<*, E>):Context<T, E> = make(FlatMapOperator(transform))
+    fun elementAt(index:Int):Context<T, R> = make(ElementAtOperator(index))
+    fun first():Context<T, R> = elementAt(0)
+    fun last():Context<T, R> = make(LastOperator())
 
     companion object {
         fun <T> create(block:Stream<T>.()->Unit):Context<T, T> = make(BlockStream(block))
@@ -108,7 +111,7 @@ fun main(args: Array<String>) {
     Context.just(0,1,1,2,1,3,4,0,3)
             .parallel()
             .flatMap { (0..it).asStream() }
-            .pack(4)
+            .pack(1)
             //.pack(1)
             //.buffer(4)
             //.pack(2)
@@ -124,6 +127,7 @@ fun main(args: Array<String>) {
             //.filter{it<15}
             //.distinct()
             //.pack(2)
+            .last()
             .log { "start:$it:thread:${Thread.currentThread()}" }
             .mapCallback(::testMapAsync)
             .log { "end:$it" }
