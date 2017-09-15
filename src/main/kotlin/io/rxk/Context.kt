@@ -26,6 +26,7 @@ class Context<T, R> (
     fun finish(block: () -> Unit):Context<T, R> = make(FinishOperator(block))
     fun error(block: (e:Throwable) -> Unit):Context<T, R> = make(ErrorOperator(block))
     fun take(n:Int):Context<T, R> = make(TakeOperator(n))
+    fun takeLast(n:Int):Context<T, R> = make(TakeLastOperator(n))
     fun on(executor: Executor):Context<T, R> = make(ScheduleOperator(executor))
     fun log(block: (R) -> String):Context<T, R> = make(LogOperator(block))
     fun parallel():Context<T, R> = on(Executors.newCachedThreadPool())
@@ -36,6 +37,7 @@ class Context<T, R> (
     fun first():Context<T, R> = elementAt(0)
     fun last():Context<T, R> = make(LastOperator())
     fun skip(count: Int):Context<T, R> = make(SkipOperator(count))
+    fun skipLast(count: Int):Context<T, R> = make(SkipLastOperator(count))
 
     companion object {
         fun <T> create(block:Stream<T>.()->Unit):Context<T, T> = make(BlockStream(block))
@@ -112,7 +114,7 @@ fun main(args: Array<String>) {
     Context.just(0,1,1,2,1,3,4,0,3)
             .pack(1)
 //            .parallel()
-//            .flatMap { (0..it).asStream() }
+            .flatMap { (0..it).asStream() }
 //            .pack(1)
             //.pack(1)
             //.buffer(4)
@@ -129,11 +131,11 @@ fun main(args: Array<String>) {
             //.filter{it<15}
             //.distinct()
             //.pack(2)
-            .skip(3)
+            .takeLast(2)
             .log { "start:$it:thread:${Thread.currentThread()}" }
             .mapCallback(::testMapAsync)
             .log { "end:$it" }
-            .forEach { println("count:${count.incrementAndGet()}") }
+            .forEach { count.incrementAndGet() }
             .finish{ println("finish:$count") }
             .start()
 }

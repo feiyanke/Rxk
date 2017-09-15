@@ -137,6 +137,32 @@ class TakeOperator<T>(number:Int) : EasyOperator<T>() {
 
 }
 
+class TakeLastOperator<T>(number: Int):EasyOperator<T>(){
+    private val list = mutableListOf<T>()
+    override val signal : IEasyMethod<T> = method<T> {
+        synchronized(this) {
+            list.add(it)
+            if (list.size > number) {
+                list.removeAt(0)
+            }
+        }
+        report.output()
+    }
+    private val count = AtomicInteger(0)
+    override val finish = method {
+        count.set(list.size)
+        list.forEach {
+            signal.output(it)
+        }
+    }
+
+    override val report = method {
+        if(count.decrementAndGet()==0){
+            finish.output()
+        }
+    }
+}
+
 class ScheduleOperator<T>(val scheduler : Executor) : EasyOperator<T>() {
 
     override val signal = method<T> {
@@ -342,5 +368,22 @@ class SkipOperator<T>(number:Int) : EasyOperator<T>() {
         }
     }
 
+    override val report = empty()
+}
+
+class SkipLastOperator<T>(number: Int):EasyOperator<T>() {
+    val list = mutableListOf<T>()
+    override val signal = method<T> {
+       synchronized(this) {
+           list.add(it)
+           if (list.size > number) {
+               list.removeAt(0)
+           } else {
+               null
+           }
+       }?.let{
+           output(it)
+       }?:report()
+    }
     override val report = empty()
 }
