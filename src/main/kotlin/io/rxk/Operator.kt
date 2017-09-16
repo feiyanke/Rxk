@@ -3,6 +3,7 @@ package io.rxk
 import java.util.*
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 
 abstract class Operator<in T, R> {
@@ -386,4 +387,19 @@ class SkipLastOperator<T>(number: Int):EasyOperator<T>() {
        }?:report()
     }
     override val report = empty()
+}
+
+
+class TimeIntervalOperator<in T>:Operator<T, Long>(){
+    private val time = AtomicLong(0)
+    override val signal = method<T, Long> {
+        val current = System.currentTimeMillis()
+        val interval = current - time.getAndSet(current)
+        output(interval)
+    }
+    override val start = method {
+        time.set(System.currentTimeMillis())
+        output()
+    }
+
 }

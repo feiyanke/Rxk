@@ -41,6 +41,7 @@ class Context<T, R> (
     fun startWith(context: Context<*, R>):Context<*, R> = merge(context, this)
     fun merge(vararg context: Context<*, R>, sync: Boolean = true):Context<*, R> = Context.merge(this, *context, sync = sync)
     fun zip(vararg context: Context<*, R>):Context<*, List<R>> = Companion.zip(this, *context)
+    fun timeInterval():Context<T, Long> = make(TimeIntervalOperator())
 
     companion object {
         fun <T> create(block:Stream<T>.()->Unit):Context<T, T> = make(BlockStream(block))
@@ -117,8 +118,11 @@ fun main(args: Array<String>) {
     var count = AtomicInteger(0)
 
 //    Context.just(0,1,1,2,1,3,4,0,3)
-    Context.merge((0..10).asStream(), (20..30).asStream())
-            .zip((40..80).asStream())
+//    Context.merge((0..10).asStream(), (20..30).asStream())
+//            .zip((40..80).asStream())
+            Context.interval(500)
+                    .timeInterval()
+                    .take(10)
 //            .pack(1)
 //            .parallel()
 //            .flatMap { (0..it).asStream() }
