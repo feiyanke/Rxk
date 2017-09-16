@@ -2,6 +2,7 @@ package io.rxk
 
 import java.util.*
 import java.util.concurrent.*
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
@@ -298,7 +299,7 @@ class BufferOperator<T>(count:Int) : Operator<T, List<T>>() {
     override val report = empty()
 }
 
-class FlatMapOperator<in T, R:Any>(transform:(T)->Context<*, R>):Operator<T, R>() {
+class FlatMapOperator<in T, R>(transform:(T)->Context<*, R>):Operator<T, R>() {
     private var count = AtomicInteger(0)
     override val signal = method<T, R> {
         transform(it).forEach {
@@ -415,14 +416,13 @@ abstract class BaseOperator<T>:EasyOperator<T>(){
 
     private var count = AtomicInteger(0)
 
-    final override val signal = method<T> {
+    override val signal : IEasyMethod<T> = empty<T>()
+
+    fun signalDo(s:T) {
         report.output()
         count.incrementAndGet()
-        output(it)
-        signalDo(it)
+        signal.output(s)
     }
-
-    abstract protected fun signalDo(s:T)
 
     final override val finish = method {
         if (count.decrementAndGet()==-1) {
@@ -447,43 +447,60 @@ abstract class BaseOperator<T>:EasyOperator<T>(){
 }
 
 
-class UntilOperator<T>(val predicate: (T) -> Boolean):BaseOperator<T>(){
-    override fun signalDo(v:T) {
-        if (predicate(v)) {
+class TakeUntilOperator<T>(predicate: (T) -> Boolean):BaseOperator<T>(){
+    override val signal = method<T> {
+        signalDo(it)
+        if (predicate(it)) {
             cancel.output()
             finish()
         }
     }
 }
 
-//class TimeoutOperator<T>(ms:Long, sync: Boolean):EasyOperator<T>() {
-//    private val latch = AtomicReference(CountDownLatch(1))
-//    override val signal = method<T> {
-//        output(it)
-//        waitTimeout(ms, sync)
-//    }
-//    override val start = method {
-//        output()
-//        waitTimeout(ms, sync)
-//    }
-//    override val error = empty<Throwable>()
-//    private fun waitTimeout(ms: Long, sync:Boolean) {
-//        if (sync) {
-//            if(!latch.updateAndGet {
-//                it.countDown()
-//                CountDownLatch(0)
-//            }.await(ms, TimeUnit.MILLISECONDS)){
-//                error(TimeoutException())
-//            }
-//        } else {
-//            thread {
-//                if(!latch.updateAndGet {
-//                    it.countDown()
-//                    CountDownLatch(0)
-//                }.await(ms, TimeUnit.MILLISECONDS)){
-//                    error(TimeoutException())
-//                }
-//            }
-//        }
-//    }
-//}
+class TakeWhileOperator<T>(predicate: (T) -> Boolean):BaseOperator<T>() {
+    override val signal = method<T> {
+        if (predicate(it)) {
+            cancel.output()
+            finish()
+        } else {
+            signalDo(it)
+        }
+    }
+}
+
+class SkipWhileOperator<T>(predicate: (T) -> Boolean):BaseOperator<T>() {
+    private var begin = false
+    override val signal = method<T> {
+
+        synchronized(this) {
+            if (begin) {
+                it
+            } else if (predicate(it)) {
+                report.output()
+                null
+            } else {
+                begin = true
+                it
+            }
+        }?.let {signalDo(it)}
+    }
+}
+
+class SkipUntilOperator<T>(predicate: (T) -> Boolean):BaseOperator<T>() {
+    private var begin = false
+    override val signal = method<T> {
+
+        synchronized(this) {
+            if (begin) {
+                it
+            } else if (predicate(it)) {
+                report.output()
+                null
+            } else {
+                report.output()
+                begin = true
+                null
+            }
+        }?.let {signalDo(it)}
+    }
+}

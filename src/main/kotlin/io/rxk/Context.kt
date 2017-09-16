@@ -2,9 +2,10 @@ package io.rxk
 
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
 
-class Context<T, R:Any> (
+class Context<T, R> (
         var signal: IMethod<T, R>,
         var error: IEasyMethod<Throwable>,
         var finish: IUnitMethod,
@@ -16,10 +17,10 @@ class Context<T, R:Any> (
 
     fun filter(predicate:(R)->Boolean):Context<T, R> = make(FilterOperator(predicate))
     fun distinct():Context<T, R> = make(DistinctOperator())
-    fun <E:Any> map(tranform:(R)->E):Context<T, E> = make(MapOperator(tranform))
-    fun <E:Any> map(method:IMethod<R, E>):Context<T, E> = make(method)
-    fun <E:Any> mapCallback(callback:(R, (E)->Unit)->Unit):Context<T, E> = make(MapCallbackOperator(callback))
-    fun <E:Any> mapFuture(method:(R)->Future<E>):Context<T, E> = make(MapFutureOperator(method))
+    fun <E> map(tranform:(R)->E):Context<T, E> = make(MapOperator(tranform))
+    fun <E> map(method:IMethod<R, E>):Context<T, E> = make(method)
+    fun <E> mapCallback(callback:(R, (E)->Unit)->Unit):Context<T, E> = make(MapCallbackOperator(callback))
+    fun <E> mapFuture(method:(R)->Future<E>):Context<T, E> = make(MapFutureOperator(method))
     fun scan(init:R, method:(R,R)->R):Context<T, R> = make(ScanOperator(init, method))
     fun multiScan(vararg init:R, m:(List<R>,R)->R):Context<T, R> = make(MultiScanOperator(*init, method = m))
     fun forEach(block:(R)->Unit):Context<T, R> = make(ForEachOperator(block))
@@ -31,7 +32,7 @@ class Context<T, R:Any> (
     fun parallel():Context<T, R> = on(Executors.newCachedThreadPool())
     fun pack(n:Int):Context<T, R> = make(PackOperator(n))
     fun buffer(count:Int) = make(BufferOperator(count))
-    fun <E:Any> flatMap(transform:(R)->Context<*, E>):Context<T, E> = make(FlatMapOperator(transform))
+    fun <E> flatMap(transform:(R)->Context<*, E>):Context<T, E> = make(FlatMapOperator(transform))
     fun elementAt(index:Int):Context<T, R> = make(ElementAtOperator(index))
     fun first():Context<T, R> = elementAt(0)
     fun skip(count: Int):Context<T, R> = make(SkipOperator(count))
@@ -42,7 +43,10 @@ class Context<T, R:Any> (
     fun timeInterval():Context<T, Long> = make(TimeIntervalOperator())
     fun timeStamp():Context<T, TimeStamp<R>> = map { TimeStamp(it) }
     fun indexStamp():Context<T, IndexStamp<R>> = make(IndexedOperator())
-    fun until(predicate: (R) -> Boolean):Context<T, R> = make(UntilOperator(predicate))
+    fun takeUntil(predicate: (R) -> Boolean):Context<T, R> = make(TakeUntilOperator(predicate))
+    fun takeWhile(predicate: (R) -> Boolean):Context<T, R> = make(TakeWhileOperator(predicate))
+    fun skipUntil(predicate: (R) -> Boolean):Context<T, R> = make(SkipUntilOperator(predicate))
+    fun skipWhile(predicate: (R) -> Boolean):Context<T, R> = make(SkipWhileOperator(predicate))
     fun finish(block: () -> Unit) = make(FinishOperator(block)).start()
     fun finish() {
         val latch = CountDownLatch(1)
@@ -55,6 +59,8 @@ class Context<T, R:Any> (
         last { latch.set(it) }
         return latch.get()
     }
+    fun all(predicate: (R) -> Boolean) = map(predicate).takeUntil { !it }.last()
+    fun contains(v:R) = takeUntil { it == v }.last() == v
 //    fun timeout(ms: Long, sync: Boolean = true):Context<T, R> = make(TimeoutOperator(ms, sync))
 //    fun all(predicate: (R) -> Boolean, cb:(Boolean)->Unit) {
 //        forEach {
@@ -69,27 +75,27 @@ class Context<T, R:Any> (
 
 
     companion object {
-        fun <T:Any> create(block:Stream<T>.()->Unit):Context<T, T> = make(BlockStream(block))
+        fun <T> create(block:Stream<T>.()->Unit):Context<T, T> = make(BlockStream(block))
         fun fromRunable(block:()->Unit):Context<Unit, Unit> = make(RunableStream(block))
         fun from(runnable: Runnable):Context<Unit, Unit> = fromRunable(runnable::run)
-        fun <T:Any> fromCallable(callable:()->T):Context<T, T> = make(CallableStream(callable))
-        fun <T:Any> from(callable: Callable<T>):Context<T, T> = fromCallable(callable::call)
-        fun <T:Any> from(future: Future<T>):Context<T, T> = fromCallable(future::get)
-        fun <T:Any> from(iterable: Iterable<T>):Context<T, T> = make(IterableStream(iterable))
-        fun <T:Any> from(array: Array<T>):Context<T, T> = make(IterableStream(array.asIterable()))
-        fun <T:Any> just(vararg values:T):Context<T, T> = from(values.asIterable())
+        fun <T> fromCallable(callable:()->T):Context<T, T> = make(CallableStream(callable))
+        fun <T> from(callable: Callable<T>):Context<T, T> = fromCallable(callable::call)
+        fun <T> from(future: Future<T>):Context<T, T> = fromCallable(future::get)
+        fun <T> from(iterable: Iterable<T>):Context<T, T> = make(IterableStream(iterable))
+        fun <T> from(array: Array<T>):Context<T, T> = make(IterableStream(array.asIterable()))
+        fun <T> just(vararg values:T):Context<T, T> = from(values.asIterable())
         fun range(n:Int, m:Int):Context<Int, Int> = from(n until m)
         fun interval(ms: Long):Context<Int, Int> = make(IntervalStream(ms))
-        fun <T:Any> merge(vararg context: Context<*, T>, sync:Boolean = true):Context<*, T> = make(MergeStream(sync, context.asList()))
-        fun <T:Any> zip(vararg context: Context<*, T>):Context<*, List<T>> = make(ZipStream(context.asList()))
+        fun <T> merge(vararg context: Context<*, T>, sync:Boolean = true):Context<*, T> = make(MergeStream(sync, context.asList()))
+        fun <T> zip(vararg context: Context<*, T>):Context<*, List<T>> = make(ZipStream(context.asList()))
 
-        private fun <T:Any> make(o: Stream<T>):Context<T, T> = o.make()
+        private fun <T> make(o: Stream<T>):Context<T, T> = o.make()
     }
 
-    fun <E:Any> make(m: Operator<R, E>) = make(m.signal, m.error, m.finish, m.start, m.cancel, m.report)
+    fun <E> make(m: Operator<R, E>) = make(m.signal, m.error, m.finish, m.start, m.cancel, m.report)
     fun make(m: EasyOperator<R>) = make(m.signal, m.error, m.finish, m.start, m.cancel, m.report)
 
-    fun <E:Any> make(next : IMethod<R, E>,
+    fun <E> make(next : IMethod<R, E>,
                  error : IEasyMethod<Throwable>? = null,
                  finish : IUnitMethod? = null,
                  start : IUnitMethod? = null,
@@ -118,7 +124,7 @@ class Context<T, R:Any> (
         chainReport(report)
     }
 
-    private fun <E:Any> chainNext(m:IMethod<R, E>) : Context<T, E> = Context(signal.chain(m), error, finish, start, cancel, report)
+    private fun <E> chainNext(m:IMethod<R, E>) : Context<T, E> = Context(signal.chain(m), error, finish, start, cancel, report)
     private fun chainNext(m:IEasyMethod<R>?) = m?.let { signal = signal.chain(m) }
     private fun chainError(m:IEasyMethod<Throwable>?) = m?.let { error = error.chain(m) }
     private fun chainFinish(m:IUnitMethod?) = m?.let { finish = finish.chain(m) }
@@ -139,38 +145,61 @@ fun testMapAsync(n:Any, cb:(String)->Unit){
     }
 }
 
+class TimeStamp<out T>(val value:T) {
+    val time = System.currentTimeMillis()
+}
+
+class IndexStamp<out T>(val value: T, val index:Int)
+
+class ValueLatch<T> : CountDownLatch(1) {
+    val value = AtomicReference<T>()
+    fun set(v:T) {
+        value.set(v)
+        countDown()
+    }
+    fun get() : T {
+        await()
+        return value.get()
+    }
+    fun get(ms: Long) : T? {
+        return if(await(ms, TimeUnit.MILLISECONDS)) {
+            value.get()
+        } else null
+    }
+}
+
+
 fun main(args: Array<String>) {
     var count = AtomicInteger(0)
 
 //    Context.just(0,1,1,2,1,3,4,0,3)
 //    Context.merge((0..10).asStream(), (20..30).asStream())
 //            .zip((40..80).asStream())
-            val a = Context.interval(500)
-                    //.timeInterval()
-                    .until { it > 10 }
-                    .last()
+    val a = Context.just(0,1,1,2,1,3,4,0,3)
+            //.timeInterval()
+            .all { it > 0 }
 
-            println("last : $a")
+    println("last : $a")
 //                    .timeout(5000)
 //            .pack(1)
 //            .parallel()
 //            .flatMap { (0..it).asStream() }
 //            .pack(1)
-            //.pack(1)
-            //.buffer(4)
-            //.pack(2)
-            //.on(Executors.newCachedThreadPool())
-            //.take(30)
-            //.multiScan(0,0){a,b->a.sum()+b}
-            //.parallel()
-            //.pack(5)
-            //.pack(7)
-            //.parallel()
-            //.pack(10)
-            //.parallel()
-            //.filter{it<15}
-            //.distinct()
-            //.pack(2)
+    //.pack(1)
+    //.buffer(4)
+    //.pack(2)
+    //.on(Executors.newCachedThreadPool())
+    //.take(30)
+    //.multiScan(0,0){a,b->a.sum()+b}
+    //.parallel()
+    //.pack(5)
+    //.pack(7)
+    //.parallel()
+    //.pack(10)
+    //.parallel()
+    //.filter{it<15}
+    //.distinct()
+    //.pack(2)
 //            .takeLast(2)
 //            .log { "start:$it:thread:${Thread.currentThread()}" }
 //            .mapCallback(::testMapAsync)
@@ -178,28 +207,5 @@ fun main(args: Array<String>) {
 //            .forEach { count.incrementAndGet() }
 //            .error { it.printStackTrace() }
 //            .finish()
-    println("finish:$count")
-}
-
-class TimeStamp<out T>(val value:T) {
-    val time = System.currentTimeMillis()
-}
-
-class IndexStamp<out T>(val value: T, val index:Int)
-
-class ValueLatch<T:Any> : CountDownLatch(1) {
-    lateinit var value:T
-    fun set(v:T) {
-        value = v
-        countDown()
-    }
-    fun get() : T {
-        await()
-        return value
-    }
-    fun get(ms: Long) : T? {
-        return if(await(ms, TimeUnit.MILLISECONDS)) {
-            value
-        } else null
-    }
+//    println("finish:$count")
 }
