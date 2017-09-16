@@ -61,18 +61,7 @@ class Context<T, R> (
     }
     fun all(predicate: (R) -> Boolean) = map(predicate).takeUntil { !it }.last()
     fun contains(v:R) = takeUntil { it == v }.last() == v
-//    fun timeout(ms: Long, sync: Boolean = true):Context<T, R> = make(TimeoutOperator(ms, sync))
-//    fun all(predicate: (R) -> Boolean, cb:(Boolean)->Unit) {
-//        forEach {
-//            if (!predicate(it)) {
-//                cb(false)
-//                cancel()
-//            }
-//        }.finish {
-//            cb(true)
-//        }.start()
-//    }
-
+    fun any(predicate: (R) -> Boolean) = map(predicate).takeUntil { it }.last()
 
     companion object {
         fun <T> create(block:Stream<T>.()->Unit):Context<T, T> = make(BlockStream(block))
