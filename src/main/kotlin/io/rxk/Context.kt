@@ -22,6 +22,7 @@ class Context<T, R> (
     fun <E> mapCallback(callback:(R, (E)->Unit)->Unit):Context<T, E> = make(MapCallbackOperator(callback))
     fun <E> mapFuture(method:(R)->Future<E>):Context<T, E> = make(MapFutureOperator(method))
     fun scan(init:R, method:(R,R)->R):Context<T, R> = make(ScanOperator(init, method))
+    fun reduce(init:R, method:(R,R)->R) = scan(init, method).last()
     fun multiScan(vararg init:R, m:(List<R>,R)->R):Context<T, R> = make(MultiScanOperator(*init, method = m))
     fun forEach(block:(R)->Unit):Context<T, R> = make(ForEachOperator(block))
     fun error(block: (e:Throwable) -> Unit):Context<T, R> = make(ErrorOperator(block))
@@ -62,6 +63,7 @@ class Context<T, R> (
     fun all(predicate: (R) -> Boolean) = map(predicate).takeUntil { !it }.last()
     fun contains(v:R) = takeUntil { it == v }.last() == v
     fun any(predicate: (R) -> Boolean) = map(predicate).takeUntil { it }.last()
+    fun count() = indexStamp().last().index + 1
 
     companion object {
         fun <T> create(block:Stream<T>.()->Unit):Context<T, T> = make(BlockStream(block))
@@ -122,17 +124,10 @@ class Context<T, R> (
     private fun chainReport(m:IUnitMethod?) = m?.let { report = it.chain(report) }
 }
 
-fun testMap(n:Int) : String {
-    Thread.sleep(1000)
-    return n.toString()
-}
-
-fun testMapAsync(n:Any, cb:(String)->Unit){
-    thread {
-        Thread.sleep(1000)
-        cb(n.toString())
-    }
-}
+fun Context<*, Int>.sum() = reduce(0) {x,y->x+y}
+fun Context<*, Int>.min() = reduce(Int.MAX_VALUE) { x, y->if (x<y) x else y }
+fun Context<*, Int>.max() = reduce(Int.MIN_VALUE) { x, y->if (x>y) x else y }
+fun Context<*, Int>.average() = scan(0) {x,y->x+y}.indexStamp().last().let { it.value.toDouble() / (it.index+1) }
 
 class TimeStamp<out T>(val value:T) {
     val time = System.currentTimeMillis()
@@ -157,6 +152,17 @@ class ValueLatch<T> : CountDownLatch(1) {
     }
 }
 
+fun testMap(n:Int) : String {
+    Thread.sleep(1000)
+    return n.toString()
+}
+
+fun testMapAsync(n:Any, cb:(String)->Unit){
+    thread {
+        Thread.sleep(1000)
+        cb(n.toString())
+    }
+}
 
 fun main(args: Array<String>) {
     var count = AtomicInteger(0)
@@ -166,7 +172,7 @@ fun main(args: Array<String>) {
 //            .zip((40..80).asStream())
     val a = Context.just(0,1,1,2,1,3,4,0,3)
             //.timeInterval()
-            .all { it > 0 }
+            .average()
 
     println("last : $a")
 //                    .timeout(5000)
