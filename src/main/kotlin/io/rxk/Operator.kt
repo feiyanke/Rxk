@@ -5,6 +5,7 @@ import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.concurrent.thread
 
 abstract class Operator<in T, R> {
     abstract val signal: IMethod<T, R>
@@ -85,13 +86,13 @@ class MapOperator<in R, E>(transform: (R) -> E) : Operator<R, E>() {
         }
 }
 
-class ForEachOperator<T>(report:Boolean, block:(T)->Unit):EasyOperator<T>() {
+class ForEachOperator<T>(block:(T)->Unit):EasyOperator<T>() {
     override val error = empty<Throwable>()
     override val report = empty()
     override val signal = method<T> {
         try {
             block(it)
-            if (report) report()
+            report()
         } catch (e:Throwable) {
             error(e)
         }
@@ -297,7 +298,7 @@ class BufferOperator<T>(count:Int) : Operator<T, List<T>>() {
     override val report = empty()
 }
 
-class FlatMapOperator<in T, R>(transform:(T)->Context<*, R>):Operator<T, R>() {
+class FlatMapOperator<in T, R:Any>(transform:(T)->Context<*, R>):Operator<T, R>() {
     private var count = AtomicInteger(0)
     override val signal = method<T, R> {
         transform(it).forEach {
@@ -307,7 +308,7 @@ class FlatMapOperator<in T, R>(transform:(T)->Context<*, R>):Operator<T, R>() {
             error(it)
         }.finish {
             report.output()
-        }.start()
+        }
     }
     override val error = empty<Throwable>()
     override val report = method {
@@ -401,5 +402,88 @@ class TimeIntervalOperator<in T>:Operator<T, Long>(){
         time.set(System.currentTimeMillis())
         output()
     }
-
 }
+
+class IndexedOperator<T>:Operator<T, IndexStamp<T>>() {
+    private val count = AtomicInteger(0)
+    override val signal = method<T, IndexStamp<T>> {
+        output(IndexStamp(it, count.getAndIncrement()))
+    }
+}
+
+abstract class BaseOperator<T>:EasyOperator<T>(){
+
+    private var count = AtomicInteger(0)
+
+    final override val signal = method<T> {
+        report.output()
+        count.incrementAndGet()
+        output(it)
+        signalDo(it)
+    }
+
+    abstract protected fun signalDo(s:T)
+
+    final override val finish = method {
+        if (count.decrementAndGet()==-1) {
+            output()
+        }
+    }
+
+    final override val error = empty<Throwable>()
+
+    final override val cancel = method {
+        output()
+        signal.output = {}
+        error.output = {}
+        finish.output = {}
+    }
+
+    final override val report = method {
+        if (count.decrementAndGet()==-1) {
+            finish.output()
+        }
+    }
+}
+
+
+class UntilOperator<T>(val predicate: (T) -> Boolean):BaseOperator<T>(){
+    override fun signalDo(v:T) {
+        if (predicate(v)) {
+            cancel.output()
+            finish()
+        }
+    }
+}
+
+//class TimeoutOperator<T>(ms:Long, sync: Boolean):EasyOperator<T>() {
+//    private val latch = AtomicReference(CountDownLatch(1))
+//    override val signal = method<T> {
+//        output(it)
+//        waitTimeout(ms, sync)
+//    }
+//    override val start = method {
+//        output()
+//        waitTimeout(ms, sync)
+//    }
+//    override val error = empty<Throwable>()
+//    private fun waitTimeout(ms: Long, sync:Boolean) {
+//        if (sync) {
+//            if(!latch.updateAndGet {
+//                it.countDown()
+//                CountDownLatch(0)
+//            }.await(ms, TimeUnit.MILLISECONDS)){
+//                error(TimeoutException())
+//            }
+//        } else {
+//            thread {
+//                if(!latch.updateAndGet {
+//                    it.countDown()
+//                    CountDownLatch(0)
+//                }.await(ms, TimeUnit.MILLISECONDS)){
+//                    error(TimeoutException())
+//                }
+//            }
+//        }
+//    }
+//}

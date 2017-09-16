@@ -5,7 +5,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
 
-abstract class Stream<R> {
+abstract class Stream<R:Any> {
     open protected val signal: IEasyMethod<R> = empty<R>()
     open protected val error : IEasyMethod<Throwable> = empty<Throwable>()
     open protected val finish : IUnitMethod = empty()
@@ -15,7 +15,7 @@ abstract class Stream<R> {
     fun make():Context<R, R> = Context(signal, error, finish, start, cancel, report)
 }
 
-abstract class BaseStream<R>:Stream<R>(){
+abstract class BaseStream<R:Any>:Stream<R>(){
 
     private var count = AtomicInteger(0)
 
@@ -45,7 +45,7 @@ abstract class BaseStream<R>:Stream<R>(){
     }
 }
 
-class BlockStream<R>(block:BaseStream<R>.()->Unit) : BaseStream<R>() {
+class BlockStream<R:Any>(block:BaseStream<R>.()->Unit) : BaseStream<R>() {
     override val start = method {
         try {
             block()
@@ -69,7 +69,7 @@ class RunableStream(block:()->Unit) : BaseStream<Unit>() {
     }
 }
 
-class CallableStream<R>(callable:()->R) : BaseStream<R>() {
+class CallableStream<R:Any>(callable:()->R) : BaseStream<R>() {
     override val start = method {
         try {
             signal(callable())
@@ -90,7 +90,7 @@ class IntervalStream(ms:Long):BaseStream<Int>(){
     }
 }
 
-class IterableStream<T>(iterable: Iterable<T>):BaseStream<T>() {
+class IterableStream<T:Any>(iterable: Iterable<T>):BaseStream<T>() {
     val iter = iterable.iterator()
     override val start = method {
         iterable.forEach { signal(it) }
@@ -98,7 +98,7 @@ class IterableStream<T>(iterable: Iterable<T>):BaseStream<T>() {
     }
 }
 
-class MergeStream<T>(sync:Boolean, list:List<Context<*, T>>):BaseStream<T>() {
+class MergeStream<T:Any>(sync:Boolean, list:List<Context<*, T>>):BaseStream<T>() {
     private val count = AtomicInteger(list.size)
     override val start = method {
         list.forEach {
@@ -109,7 +109,7 @@ class MergeStream<T>(sync:Boolean, list:List<Context<*, T>>):BaseStream<T>() {
                     if (count.decrementAndGet()==0){
                         finish()
                     }
-                }.start()
+                }
             } else {
                 thread {
                     it.forEach {
@@ -118,14 +118,14 @@ class MergeStream<T>(sync:Boolean, list:List<Context<*, T>>):BaseStream<T>() {
                         if (count.decrementAndGet()==0){
                             finish()
                         }
-                    }.start()
+                    }
                 }
             }
         }
     }
 }
 
-class ZipStream<T>(list: List<Context<*, T>>):BaseStream<List<T>>() {
+class ZipStream<T:Any>(list: List<Context<*, T>>):BaseStream<List<T>>() {
 
     private val buffer : List<MutableList<T>> = list.map { mutableListOf<T>() }
     private val count = AtomicInteger(list.size)
@@ -138,7 +138,7 @@ class ZipStream<T>(list: List<Context<*, T>>):BaseStream<List<T>>() {
                 if (count.decrementAndGet()==0){
                     finish()
                 }
-            }.start()
+            }
         }
     }
 
