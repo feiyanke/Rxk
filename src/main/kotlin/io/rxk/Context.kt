@@ -39,7 +39,8 @@ class Context<T, R> (
     fun skip(count: Int):Context<T, R> = make(SkipOperator(count))
     fun skipLast(count: Int):Context<T, R> = make(SkipLastOperator(count))
     fun startWith(context: Context<*, R>):Context<*, R> = merge(context, this)
-    fun merge(vararg context: Context<*, R>, sync: Boolean = true):Context<*, R> = Context.merge(this, *context, sync = sync)
+    fun merge(vararg context: Context<*, R>, sync: Boolean = false):Context<*, R> = Context.merge(this, *context, sync = sync)
+    fun concat(vararg context: Context<*, R>):Context<*, R> = Companion.concat(*context)
     fun zip(vararg context: Context<*, R>):Context<*, List<R>> = Companion.zip(this, *context)
     fun timeInterval():Context<T, Long> = make(TimeIntervalOperator())
     fun timeStamp():Context<T, TimeStamp<R>> = map { TimeStamp(it) }
@@ -77,7 +78,8 @@ class Context<T, R> (
         fun <T> just(vararg values:T):Context<T, T> = from(values.asIterable())
         fun range(n:Int, m:Int):Context<Int, Int> = from(n until m)
         fun interval(ms: Long):Context<Int, Int> = make(IntervalStream(ms))
-        fun <T> merge(vararg context: Context<*, T>, sync:Boolean = true):Context<*, T> = make(MergeStream(sync, context.asList()))
+        fun <T> merge(vararg context: Context<*, T>, sync:Boolean = false):Context<*, T> = make(MergeStream(sync, context.asList()))
+        fun <T> concat(vararg context: Context<*, T>):Context<*, T> = merge(*context, sync = true)
         fun <T> zip(vararg context: Context<*, T>):Context<*, List<T>> = make(ZipStream(context.asList()))
 
         private fun <T> make(o: Stream<T>):Context<T, T> = o.make()
