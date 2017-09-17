@@ -1,4 +1,4 @@
-package io.rxk
+package io.rxk.core
 
 import java.util.*
 import java.util.concurrent.*
@@ -45,7 +45,7 @@ class FilterOperator<T>(predicate: (T) -> Boolean) : EasyOperator<T>() {
     }
 }
 
-class MapCallbackOperator<in R, E>(callback:(R, (E)->Unit)->Unit):Operator<R, E>(){
+class MapCallbackOperator<in R, E>(callback:(R, (E)->Unit)->Unit): Operator<R, E>(){
     override val error = empty<Throwable>()
     override val report = empty()
     override val signal = method<R, E> {
@@ -53,20 +53,20 @@ class MapCallbackOperator<in R, E>(callback:(R, (E)->Unit)->Unit):Operator<R, E>
             callback(it) {
                 output(it)
             }
-        } catch (e:Throwable) {
+        } catch (e: Throwable) {
             report()
             error(e)
         }
     }
 }
 
-class MapFutureOperator<in R, E>(method:(R)->Future<E>):Operator<R, E>(){
+class MapFutureOperator<in R, E>(method:(R)->Future<E>): Operator<R, E>(){
     override val error = empty<Throwable>()
     override val report = empty()
     override val signal = method<R, E> {
         try {
             output(method(it).get())
-        } catch (e:Throwable) {
+        } catch (e: Throwable) {
             report()
             error(e)
         }
@@ -78,34 +78,34 @@ class MapOperator<in R, E>(transform: (R) -> E) : Operator<R, E>() {
     override val error = empty<Throwable>()
     override val report = empty()
     override val signal = method<R, E> {
-            try {
-                output(transform(it))
-            } catch (e : Throwable) {
-                report()
-                error(e)
-            }
+        try {
+            output(transform(it))
+        } catch (e: Throwable) {
+            report()
+            error(e)
         }
+    }
 }
 
-class ForEachOperator<T>(block:(T)->Unit):EasyOperator<T>() {
+class ForEachOperator<T>(block:(T)->Unit): EasyOperator<T>() {
     override val error = empty<Throwable>()
     override val report = empty()
     override val signal = method<T> {
         try {
             block(it)
             report()
-        } catch (e:Throwable) {
+        } catch (e: Throwable) {
             error(e)
         }
     }
 }
 
-class FinishOperator<T>(block: () -> Unit):EasyOperator<T>() {
-    override val finish = method{block()}
+class FinishOperator<T>(block: () -> Unit): EasyOperator<T>() {
+    override val finish = method { block() }
 }
 
-class ErrorOperator<T>(block: (Throwable) -> Unit):EasyOperator<T>() {
-    override val error = method<Throwable>{block(it)}
+class ErrorOperator<T>(block: (Throwable) -> Unit): EasyOperator<T>() {
+    override val error = method<Throwable> { block(it) }
 }
 
 class TakeOperator<T>(number:Int) : EasyOperator<T>() {
@@ -133,14 +133,14 @@ class TakeOperator<T>(number:Int) : EasyOperator<T>() {
 
     override val report = method {
         output()
-        if (report_count.incrementAndGet()>=number) {
+        if (report_count.incrementAndGet() >= number) {
             finish.output()
         }
     }
 
 }
 
-class TakeLastOperator<T>(number: Int):EasyOperator<T>(){
+class TakeLastOperator<T>(number: Int): EasyOperator<T>(){
     private val list = mutableListOf<T>()
     override val signal : IEasyMethod<T> = method<T> {
         synchronized(this) {
@@ -160,7 +160,7 @@ class TakeLastOperator<T>(number: Int):EasyOperator<T>(){
     }
 
     override val report = method {
-        if(count.decrementAndGet()==0){
+        if (count.decrementAndGet() == 0) {
             finish.output()
         }
     }
@@ -173,7 +173,7 @@ class ScheduleOperator<T>(val scheduler : Executor) : EasyOperator<T>() {
     }
 
     override val error = method<Throwable> {
-        scheduler.execute {output(it)}
+        scheduler.execute { output(it) }
     }
 
     override val finish = method {
@@ -188,7 +188,7 @@ class LogOperator<T>(log:(T)->String) : EasyOperator<T>() {
     }
 }
 
-class PackOperator<T>(private val n:Int):EasyOperator<T>(){
+class PackOperator<T>(private val n:Int): EasyOperator<T>(){
 
     var queue : MutableList<T> = mutableListOf()
     val pack : MutableList<List<T>> = mutableListOf()
@@ -206,7 +206,7 @@ class PackOperator<T>(private val n:Int):EasyOperator<T>(){
     override val signal = method<T> {
         synchronized(this) {
             queue.add(it)
-            if (queue.size==n) {
+            if (queue.size == n) {
                 pack.add(queue)
                 queue = LinkedList()
             }
@@ -244,16 +244,15 @@ class PackOperator<T>(private val n:Int):EasyOperator<T>(){
     }
 }
 
-class ScanOperator<T>(private var value:T, method:(T, T)->T):EasyOperator<T>(){
-    override val signal = method<T> {
+class ScanOperator<T>(private var value:T? = null, method:(T, T)->T): EasyOperator<T>(){
+    override val signal = method<T> { s->
         synchronized(this) {
-            value = method(value, it)
-        }
-        output(value)
+            value?.let { value = method(it, s);value }?:run { value = s;s }
+        }.let { output(it) }
     }
 }
 
-class MultiScanOperator<T>(vararg values:T, method: (List<T>, T) -> T):EasyOperator<T>(){
+class MultiScanOperator<T>(vararg values:T, method: (List<T>, T) -> T): EasyOperator<T>(){
     private val list = values.toMutableList()
     override val signal = method<T> {
         synchronized(this) {
@@ -284,7 +283,7 @@ class DistinctOperator<T> : EasyOperator<T>(){
 class BufferOperator<T>(count:Int) : Operator<T, List<T>>() {
     private var list = mutableListOf<T>()
     override val signal = method<T, List<T>> {
-        var out :List<T>? = null
+        var out: List<T>? = null
         synchronized(list) {
             list.add(it)
             if (list.size == count) {
@@ -299,7 +298,7 @@ class BufferOperator<T>(count:Int) : Operator<T, List<T>>() {
     override val report = empty()
 }
 
-class FlatMapOperator<in T, R>(transform:(T)->Context<*, R>):Operator<T, R>() {
+class FlatMapOperator<in T, R>(transform:(T)-> Context<*, R>): Operator<T, R>() {
     private var count = AtomicInteger(0)
     override val signal = method<T, R> {
         transform(it).forEach {
@@ -313,12 +312,12 @@ class FlatMapOperator<in T, R>(transform:(T)->Context<*, R>):Operator<T, R>() {
     }
     override val error = empty<Throwable>()
     override val report = method {
-        if (count.decrementAndGet()==-1) {
+        if (count.decrementAndGet() == -1) {
             finish.output()
         }
     }
     override val finish = method {
-        if (count.decrementAndGet()==-1) {
+        if (count.decrementAndGet() == -1) {
             output()
         }
     }
@@ -341,12 +340,12 @@ class ElementAtOperator<T>(index:Int) : EasyOperator<T>() {
     override val report = method {
         finish.output()
     }
-    override val finish = method {  }
+    override val finish = method { }
 }
 
 class LastOperator<T> : EasyOperator<T>() {
     private val last : AtomicReference<T> = AtomicReference()
-    override val signal:IEasyMethod<T> = method<T> {
+    override val signal: IEasyMethod<T> = method<T> {
         last.set(it)
         report.output()
     }
@@ -374,25 +373,25 @@ class SkipOperator<T>(number:Int) : EasyOperator<T>() {
     override val report = empty()
 }
 
-class SkipLastOperator<T>(number: Int):EasyOperator<T>() {
+class SkipLastOperator<T>(number: Int): EasyOperator<T>() {
     val list = mutableListOf<T>()
     override val signal = method<T> {
-       synchronized(this) {
-           list.add(it)
-           if (list.size > number) {
-               list.removeAt(0)
-           } else {
-               null
-           }
-       }?.let{
-           output(it)
-       }?:report()
+        synchronized(this) {
+            list.add(it)
+            if (list.size > number) {
+                list.removeAt(0)
+            } else {
+                null
+            }
+        }?.let {
+            output(it)
+        } ?: report()
     }
     override val report = empty()
 }
 
 
-class TimeIntervalOperator<in T>:Operator<T, Long>(){
+class TimeIntervalOperator<in T>: Operator<T, Long>(){
     private val time = AtomicLong(0)
     override val signal = method<T, Long> {
         val current = System.currentTimeMillis()
@@ -405,14 +404,14 @@ class TimeIntervalOperator<in T>:Operator<T, Long>(){
     }
 }
 
-class IndexedOperator<T>:Operator<T, IndexStamp<T>>() {
+class IndexedOperator<T>: Operator<T, IndexStamp<T>>() {
     private val count = AtomicInteger(0)
     override val signal = method<T, IndexStamp<T>> {
         output(IndexStamp(it, count.getAndIncrement()))
     }
 }
 
-abstract class BaseOperator<T>:EasyOperator<T>(){
+abstract class BaseOperator<T>: EasyOperator<T>(){
 
     private var count = AtomicInteger(0)
 
@@ -425,7 +424,7 @@ abstract class BaseOperator<T>:EasyOperator<T>(){
     }
 
     final override val finish = method {
-        if (count.decrementAndGet()==-1) {
+        if (count.decrementAndGet() == -1) {
             output()
         }
     }
@@ -440,14 +439,14 @@ abstract class BaseOperator<T>:EasyOperator<T>(){
     }
 
     final override val report = method {
-        if (count.decrementAndGet()==-1) {
+        if (count.decrementAndGet() == -1) {
             finish.output()
         }
     }
 }
 
 
-class TakeUntilOperator<T>(predicate: (T) -> Boolean):BaseOperator<T>(){
+class TakeUntilOperator<T>(predicate: (T) -> Boolean): BaseOperator<T>(){
     override val signal = method<T> {
         signalDo(it)
         if (predicate(it)) {
@@ -457,7 +456,7 @@ class TakeUntilOperator<T>(predicate: (T) -> Boolean):BaseOperator<T>(){
     }
 }
 
-class TakeWhileOperator<T>(predicate: (T) -> Boolean):BaseOperator<T>() {
+class TakeWhileOperator<T>(predicate: (T) -> Boolean): BaseOperator<T>() {
     override val signal = method<T> {
         if (predicate(it)) {
             cancel.output()
@@ -468,7 +467,7 @@ class TakeWhileOperator<T>(predicate: (T) -> Boolean):BaseOperator<T>() {
     }
 }
 
-class SkipWhileOperator<T>(predicate: (T) -> Boolean):BaseOperator<T>() {
+class SkipWhileOperator<T>(predicate: (T) -> Boolean): BaseOperator<T>() {
     private var begin = false
     override val signal = method<T> {
 
@@ -482,11 +481,11 @@ class SkipWhileOperator<T>(predicate: (T) -> Boolean):BaseOperator<T>() {
                 begin = true
                 it
             }
-        }?.let {signalDo(it)}
+        }?.let { signalDo(it) }
     }
 }
 
-class SkipUntilOperator<T>(predicate: (T) -> Boolean):BaseOperator<T>() {
+class SkipUntilOperator<T>(predicate: (T) -> Boolean): BaseOperator<T>() {
     private var begin = false
     override val signal = method<T> {
 
@@ -501,6 +500,6 @@ class SkipUntilOperator<T>(predicate: (T) -> Boolean):BaseOperator<T>() {
                 begin = true
                 null
             }
-        }?.let {signalDo(it)}
+        }?.let { signalDo(it) }
     }
 }

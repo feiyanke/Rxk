@@ -1,4 +1,4 @@
-package io.rxk
+package io.rxk.core
 
 interface ISink<R> {
     var output : (R)->Unit
@@ -54,7 +54,7 @@ class UnitChain(a: IUnitMethod, b: IUnitMethod) : Chain<Unit, Unit, Unit>(a,b), 
 fun empty() = EmptyUnitMethod()
 fun <T> empty() = EmptyMethod<T>()
 
-inline fun <T, R> method(crossinline block:IMethod<T, R>.(T)->Unit) : IMethod<T, R> {
+inline fun <T, R> method(crossinline block: IMethod<T, R>.(T)->Unit) : IMethod<T, R> {
     return object : Method<T, R>() {
         override fun invoke(v: T) {
             block(v)
@@ -62,7 +62,7 @@ inline fun <T, R> method(crossinline block:IMethod<T, R>.(T)->Unit) : IMethod<T,
     }
 }
 
-inline fun <T> method(crossinline block:IEasyMethod<T>.(T)->Unit) : IEasyMethod<T> {
+inline fun <T> method(crossinline block: IEasyMethod<T>.(T)->Unit) : IEasyMethod<T> {
     return object : EasyMethod<T>() {
         override fun invoke(v: T) {
             block(v)
@@ -80,7 +80,7 @@ inline fun method(crossinline block: IUnitMethod.() -> Unit) : IUnitMethod {
 }
 
 
-fun <T, R> IMethod<T, R>.out(o:(R)->Unit):IMethod<T, R> = apply { output = o }
+fun <T, R> IMethod<T, R>.out(o:(R)->Unit): IMethod<T, R> = apply { output = o }
 fun <T, E, R> IMethod<T, R>.chain(method: IMethod<R, E>) : IMethod<T, E> = Chain(this, method)
 fun <T> IEasyMethod<T>.chain(method: IEasyMethod<T>) : IEasyMethod<T> = EasyChain(this, method)
 fun IUnitMethod.chain(method: IUnitMethod) : IUnitMethod = UnitChain(this, method)

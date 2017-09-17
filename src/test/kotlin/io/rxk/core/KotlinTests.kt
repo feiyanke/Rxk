@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.rxk
+package io.rxk.core
 
 import org.junit.Before
 import org.mockito.Mock

@@ -1,6 +1,6 @@
 package io.rxk.chain
 
-import io.rxk.KotlinTests
+import io.rxk.core.KotlinTests
 import org.junit.Test
 import org.mockito.Mockito
 

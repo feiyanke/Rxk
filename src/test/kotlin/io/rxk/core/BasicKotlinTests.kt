@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.rxk
+package io.rxk.core
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.fail
@@ -32,7 +32,7 @@ class BasicKotlinTests : KotlinTests() {
 //            doNext("Hello")
 //            doFinish()
 //        }.forEach { a.received(it) }.finish()
-
+        Context.just(123)
         verify(a, times(1)).received("Hello")
     }
 
