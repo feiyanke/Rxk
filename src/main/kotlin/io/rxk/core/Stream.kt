@@ -6,9 +6,9 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
 
 abstract class Stream<R> {
-    open protected val signal: IEasyMethod<R> = empty<R>()
-    open protected val error : IEasyMethod<Throwable> = empty<Throwable>()
-    open protected val finish : IUnitMethod = empty()
+    open val signal: IEasyMethod<R> = empty<R>()
+    open val error : IEasyMethod<Throwable> = empty<Throwable>()
+    open val finish : IUnitMethod = empty()
     open protected val start : IUnitMethod = empty()
     open protected val cancel : IUnitMethod = empty()
     open protected val report : IUnitMethod = empty()

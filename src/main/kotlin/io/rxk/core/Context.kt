@@ -22,13 +22,14 @@ class Context<T, R> (
     fun <E> mapCallback(callback:(R, (E)->Unit)->Unit): Context<T, E> = make(MapCallbackOperator(callback))
     fun <E> mapFuture(method:(R)->Future<E>): Context<T, E> = make(MapFutureOperator(method))
     fun scan(init:R? = null, method:(R,R)->R): Context<T, R> = make(ScanOperator(init, method))
-    fun reduce(init:R? = null, method:(R,R)->R) = scan(init, method).last()
+    fun reduce(init:R? = null, method:(R,R)->R) = scan(init, method).last()?:init
     fun multiScan(vararg init:R, m:(List<R>,R)->R): Context<T, R> = make(MultiScanOperator(*init, method = m))
     fun forEach(block:(R)->Unit): Context<T, R> = make(ForEachOperator(block))
     fun error(block: (e:Throwable) -> Unit): Context<T, R> = make(ErrorOperator(block))
     fun take(n:Int): Context<T, R> = make(TakeOperator(n))
     fun takeLast(n:Int): Context<T, R> = make(TakeLastOperator(n))
     fun log(block: (R) -> String): Context<T, R> = make(LogOperator(block))
+    fun print() = forEach(::println).finish()
     fun on(executor: Executor): Context<T, R> = make(ScheduleOperator(executor))
     fun parallel(): Context<T, R> = on(Executors.newCachedThreadPool())
     fun pack(n:Int): Context<T, R> = make(PackOperator(n))
@@ -39,9 +40,11 @@ class Context<T, R> (
     fun first(): Context<T, R> = elementAt(0)
     fun skip(count: Int): Context<T, R> = make(SkipOperator(count))
     fun skipLast(count: Int): Context<T, R> = make(SkipLastOperator(count))
-    fun startWith(context: Context<*, R>): Context<*, R> = merge(context, this)
+    fun startWith(context: Context<*, R>): Context<*, R> = Companion.concat(context, this)
+    fun startWith(vararg v:R): Context<*, R> = Companion.concat(just(*v), this)
+    fun startWith(list:List<R>): Context<*, R> = Companion.concat(from(list), this)
     fun merge(vararg context: Context<*, R>, sync: Boolean = false): Context<*, R> = Companion.merge(this, *context, sync = sync)
-    fun concat(vararg context: Context<*, R>): Context<*, R> = Companion.concat(*context)
+    fun concat(vararg context: Context<*, R>): Context<*, R> = Companion.concat(this, *context)
     fun zip(vararg context: Context<*, R>): Context<*, List<R>> = Companion.zip(this, *context)
     fun timeInterval(): Context<T, Long> = make(TimeIntervalOperator())
     fun timeStamp(): Context<T, TimeStamp<R>> = map { TimeStamp(it) }
@@ -56,16 +59,18 @@ class Context<T, R> (
         finish { latch.countDown() }
         latch.await()
     }
-    fun last(block: (R) -> Unit) = make(LastOperator()).forEach(block).finish{}
-    fun last() : R {
-        val latch = ValueLatch<R>()
-        last { latch.set(it) }
+    fun last(block: (R?) -> Unit) = make(LastOperator()).forEach(block).finish{}
+    fun last() : R? {
+        val latch = ValueLatch<R?>()
+        last {
+            latch.set(it)
+        }
         return latch.get()
     }
-    fun all(predicate: (R) -> Boolean) = map(predicate).takeUntil { !it }.last()
+    fun all(predicate: (R) -> Boolean) = map(predicate).takeUntil { !it }.last()!!
     fun contains(v:R) = takeUntil { it == v }.last() == v
-    fun any(predicate: (R) -> Boolean) = map(predicate).takeUntil { it }.last()
-    fun count() = indexStamp().last().index + 1
+    fun any(predicate: (R) -> Boolean) = map(predicate).takeUntil { it }.last()!!
+    fun count() = (indexStamp().last()?.index?:-1) + 1
 
     companion object {
         fun <T> create(block: Stream<T>.()->Unit): Context<T, T> = make(BlockStream(block))

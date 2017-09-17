@@ -458,7 +458,7 @@ class TakeUntilOperator<T>(predicate: (T) -> Boolean): BaseOperator<T>(){
 
 class TakeWhileOperator<T>(predicate: (T) -> Boolean): BaseOperator<T>() {
     override val signal = method<T> {
-        if (predicate(it)) {
+        if (!predicate(it)) {
             cancel.output()
             finish()
         } else {

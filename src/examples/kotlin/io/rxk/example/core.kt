@@ -1,7 +1,6 @@
 package io.rxk.example
 
-import io.rxk.core.Context
-import io.rxk.core.average
+import io.rxk.core.*
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
 
@@ -19,6 +18,10 @@ fun testMapAsync(n:Any, cb:(String)->Unit){
 
 fun main(args: Array<String>) {
     var count = AtomicInteger(0)
+    val aa = emptyList<Int>().asStream().last()
+    println("1111111111111111")
+//    Context.from(list).startWith(startList).print()
+
 
 //    Context.just(0,1,1,2,1,3,4,0,3)
 //    Context.merge((0..10).asStream(), (20..30).asStream())
